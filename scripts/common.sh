@@ -1,59 +1,80 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# common.sh - Fonctions utilitaires partagées pour la stack IVPS
+# common.sh - Fonctions utilitaires, environnement et allocation de ports
 # ==============================================================================
 set -euo pipefail
 
-# Couleurs ANSI pour l'affichage terminal
-readonly C_RESET='\033[0m'
-readonly C_RED='\033[0;31m'
-readonly C_GREEN='\033[0;32m'
-readonly C_YELLOW='\033[1;33m'
-readonly C_BLUE='\033[0;34m'
-readonly C_CYAN='\033[0;36m'
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
 
-# Fonctions de journalisation formatées
+readonly C_RESET='\033[0m' C_RED='\033[0;31m' C_GREEN='\033[0;32m'
+readonly C_YELLOW='\033[1;33m' C_BLUE='\033[0;34m' C_CYAN='\033[0;36m'
+
 log_info()    { echo -e "${C_BLUE}[INFO]${C_RESET} $*"; }
 log_success() { echo -e "${C_GREEN}[OK]${C_RESET} $*"; }
 log_warn()    { echo -e "${C_YELLOW}[WARN]${C_RESET} $*"; }
 log_error()   { echo -e "${C_RED}[ERREUR]${C_RESET} $*" >&2; }
 
-# Charge les variables depuis le fichier .env
 load_env() {
     local env_file="${1:-.env}"
     if [[ -f "$env_file" ]]; then
-        # Exporte les variables en ignorant les commentaires et lignes vides
         set -a
         # shellcheck disable=SC1090
-        source <(grep -E -v '^#|^$' "$env_file")
+        source <(grep -E -v '^[[:space:]]*#|^$' "$env_file")
         set +a
-        log_info "Environnement chargé depuis $env_file"
-    else
-        log_warn "Fichier $env_file non trouvé, utilisation des valeurs par défaut"
     fi
 }
 
-# Détecte le gestionnaire de paquets Linux du système hôte
+update_env_var() {
+    local key="$1" val="$2" file="$3"
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${val}|" "$file"
+    else
+        echo "${key}=${val}" >> "$file"
+    fi
+    export "${key}=${val}"
+}
+
 detect_pkg_mgr() {
-    if command -v apt-get >/dev/null 2>&1; then
-        echo "apt"
-    elif command -v dnf >/dev/null 2>&1; then
+    if command -v dnf5 >/dev/null 2>&1 || command -v dnf >/dev/null 2>&1; then
         echo "dnf"
+    elif command -v apt-get >/dev/null 2>&1; then
+        echo "apt"
     elif command -v pacman >/dev/null 2>&1; then
         echo "pacman"
     elif command -v zypper >/dev/null 2>&1; then
         echo "zypper"
     else
-        log_error "Gestionnaire de paquets non supporté."
-        exit 1
+        log_error "Gestionnaire de paquets inconnu." && exit 1
     fi
 }
 
-# Exécute une commande avec sudo si l'utilisateur n'est pas root
 run_sudo() {
-    if [[ $EUID -eq 0 ]]; then
-        "$@"
+    if [[ $EUID -eq 0 ]]; then "$@"; else sudo "$@"; fi
+}
+
+is_port_in_use() {
+    local port="$1"
+    if command -v ss >/dev/null 2>&1; then
+        ss -tuln | grep -E -q ":${port}\b" && return 0
+    fi
+    (echo > "/dev/tcp/127.0.0.1/${port}") >/dev/null 2>&1 && return 0
+    return 1
+}
+
+find_free_port() {
+    local p="$1"
+    while is_port_in_use "$p"; do
+        p=$((p + 1))
+    done
+    echo "$p"
+}
+
+generate_password() {
+    local len="${1:-20}"
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -base64 32 | tr -dc 'A-Za-z0-9_!@#%' | head -c "$len"
     else
-        sudo "$@"
+        tr -dc 'A-Za-z0-9_!@#%' < /dev/urandom | head -c "$len"
     fi
 }

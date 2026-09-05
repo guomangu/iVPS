@@ -1,21 +1,22 @@
-# Zoraxy - Reverse Proxy & Sécurité
+# Zoraxy - Reverse Proxy, WAF & Sécurité
 
-[Zoraxy](https://zoraxy.arozos.com/) est le point d'entrée HTTP/HTTPS unique pour tous les services hébergés sur le VPS.
+[Zoraxy](https://zoraxy.arozos.com/) sert de point d'entrée HTTP/HTTPS unique pour tous les services de la stack VPS.
 
-## Rôle et Fonctionnalités
+## Interfaces et Routage
 
-- **Reverse Proxy HTTP/HTTPS** : Écoute sur les ports 80 et 443.
-- **Certificats SSL automatisés** : Gestion ACME intégrée via Let's Encrypt.
-- **WAF & Filtrage IP** : Pare-feu applicatif web, blocage par géolocalisation et anti-bruteforce.
-- **Interface Web intuitive** : Accessible lors du premier démarrage sur le port `8000`.
+| Domaine Cible | Destination Interne | Options Requises |
+|---|---|---|
+| `proxy.votre-domaine.com` | `http://127.0.0.1:8000` | Accès interface Zoraxy |
+| `admin.votre-domaine.com` | `http://host.containers.internal:9090` | Activer WebSocket (Cockpit) |
+| `fichiers.votre-domaine.com` | `http://ivps-sftpgo:8080` | Interface Web SFTPGo |
 
-## Configuration du Routage
+## Configuration Initiale
 
-Une fois connecté à l'interface d'administration de Zoraxy (`http://<IP-SERVEUR>:8000`) :
-1. **Règle Cockpit** :
-   - Sous-domaine : `admin.votre-domaine.com`
-   - Cible : `http://host.containers.internal:9090` (ou `http://127.0.0.1:9090`)
-   - Activer : Support **WebSocket**
-2. **Règle SFTPGo** :
-   - Sous-domaine : `fichiers.votre-domaine.com`
-   - Cible : `http://ivps-sftpgo:8080`
+1. Connectez-vous sur le port d'administration initial : `http://<IP-SERVEUR>:8000`.
+2. Définissez le mot de passe maître (celui indiqué dans votre `.env` à la variable `ADMIN_PASSWORD`).
+3. Créez les 3 règles de routage ci-dessus.
+4. Activez la génération de certificats SSL Let's Encrypt d'un simple clic par sous-domaine.
+
+## Fonctionnalités Avancées
+- **WAF intégré** : Blocage de requêtes malveillantes et limitation de débit (rate limiting).
+- **Gestionnaire GeoIP** : Autorisation ou blocage sélectif par pays.

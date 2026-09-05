@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 03_configure.sh - Configuration des services Cockpit et pré-réglages Zoraxy
+# 03_configure.sh - Configuration Cockpit, origines proxy et pare-feu (Firewalld/UFW)
 # ==============================================================================
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,44 +11,53 @@ load_env "${ROOT_DIR}/.env"
 
 configure_cockpit() {
     local domain="${DOMAIN_NAME:-votre-domaine.com}"
-    local sub="${COCKPIT_SUBDOMAIN:-admin}"
-    local cockpit_dir="/etc/cockpit"
-    local cockpit_conf="${cockpit_dir}/cockpit.conf"
+    local admin_sub="${COCKPIT_SUBDOMAIN:-admin}"
+    local proxy_sub="${ZORAXY_SUBDOMAIN:-proxy}"
+    local conf_dir="/etc/cockpit"
+    local conf_file="${conf_dir}/cockpit.conf"
 
     log_info "Configuration de Cockpit pour le Reverse Proxy Zoraxy..."
-    run_sudo mkdir -p "$cockpit_dir"
+    run_sudo mkdir -p "$conf_dir"
 
-    # Génération sécurisée de cockpit.conf pour accepter les requêtes proxy et websockets
-    run_sudo tee "$cockpit_conf" >/dev/null <<EOF
+    run_sudo tee "$conf_file" >/dev/null <<EOF
 [WebService]
-Origins = https://${sub}.${domain} wss://${sub}.${domain} http://localhost:${COCKPIT_PORT:-9090}
+Origins = https://${admin_sub}.${domain} wss://${admin_sub}.${domain} https://${proxy_sub}.${domain} http://localhost:${COCKPIT_PORT:-9090} http://127.0.0.1:${COCKPIT_PORT:-9090}
 ProtocolHeader = X-Forwarded-Proto
 ForwardedForHeader = X-Forwarded-For
 AllowUnencrypted = true
 EOF
-    log_success "Fichier $cockpit_conf mis à jour."
-
-    # Redémarrage du socket cockpit pour prise en compte
-    log_info "Activation du socket systemd Cockpit..."
+    log_success "Fichier $conf_file configuré."
     run_sudo systemctl daemon-reload
     run_sudo systemctl enable --now cockpit.socket
-    log_success "Cockpit socket actif et en écoute."
+    log_success "Socket Cockpit activé."
 }
 
 configure_firewall() {
-    # Ouverture des ports firewall standard si ufw ou firewalld est actif
-    if command -v ufw >/dev/null 2>&1 && run_sudo ufw status | grep -qw "active"; then
-        log_info "Configuration du pare-feu UFW..."
-        run_sudo ufw allow 80/tcp comment 'Zoraxy HTTP' || true
-        run_sudo ufw allow 443/tcp comment 'Zoraxy HTTPS' || true
-        run_sudo ufw allow "${SFTPGO_SFTP_PORT:-2022}"/tcp comment 'SFTPGo SFTP' || true
-        run_sudo ufw allow "${ZORAXY_ADMIN_PORT:-8000}"/tcp comment 'Zoraxy Admin Setup' || true
+    local sftp_p="${SFTPGO_SFTP_PORT:-2022}"
+    local zoraxy_p="${ZORAXY_ADMIN_PORT:-8000}"
+
+    if command -v firewall-cmd >/dev/null 2>&1 && run_sudo firewall-cmd --state >/dev/null 2>&1; then
+        log_info "Configuration du pare-feu Firewalld (Fedora / RHEL)..."
+        run_sudo firewall-cmd --permanent --add-service=cockpit || true
+        run_sudo firewall-cmd --permanent --add-port=80/tcp || true
+        run_sudo firewall-cmd --permanent --add-port=443/tcp || true
+        run_sudo firewall-cmd --permanent --add-port="${sftp_p}/tcp" || true
+        run_sudo firewall-cmd --permanent --add-port="${zoraxy_p}/tcp" || true
+        run_sudo firewall-cmd --reload || true
+        log_success "Règles Firewalld appliquées avec succès."
+    elif command -v ufw >/dev/null 2>&1 && run_sudo ufw status | grep -qw "active"; then
+        log_info "Configuration du pare-feu UFW (Debian / Ubuntu)..."
+        run_sudo ufw allow 80/tcp comment 'HTTP' || true
+        run_sudo ufw allow 443/tcp comment 'HTTPS' || true
+        run_sudo ufw allow "${sftp_p}"/tcp comment 'SFTP' || true
+        run_sudo ufw allow "${zoraxy_p}"/tcp comment 'Zoraxy Admin' || true
+        run_sudo ufw allow "${COCKPIT_PORT:-9090}"/tcp comment 'Cockpit' || true
         log_success "Règles UFW appliquées."
     fi
 }
 
 main() {
-    log_info "=== Étape 3 : Configuration des composants ==="
+    log_info "=== Étape 3 : Configuration de Cockpit et du Pare-feu ==="
     configure_cockpit
     configure_firewall
     log_success "Étape 3 terminée avec succès."

@@ -1,9 +1,10 @@
 # IVPS Stack : Zoraxy + Cockpit + SFTPGo
 
-Stack d'administration VPS moderne, sécurisée et conteneurisée combinant la puissance native de **Cockpit** et la flexibilité de **Podman rootless** avec **Zoraxy** (Reverse Proxy & WAF) et **SFTPGo** (Fichiers Web & SFTP).
+Stack d'administration VPS moderne, conteneurisée et prête pour la production (**Fedora**, **RHEL**, **Debian**, **Ubuntu**). Elle associe **Cockpit** (gestion OS native), **Podman rootless** avec **Zoraxy** (Reverse Proxy & WAF) et **SFTPGo** (Fichiers & SFTP).
 
 [![Podman](https://img.shields.io/badge/Podman-Rootless-purple.svg)](https://podman.io)
-[![Cockpit](https://img.shields.io/badge/Cockpit-Native-blue.svg)](https://cockpit-project.org)
+[![Fedora](https://img.shields.io/badge/Fedora-Ready-blue.svg)](https://fedoraproject.org)
+[![Cockpit](https://img.shields.io/badge/Cockpit-Native-navy.svg)](https://cockpit-project.org)
 [![Zoraxy](https://img.shields.io/badge/Zoraxy-Proxy-teal.svg)](https://zoraxy.arozos.com)
 [![SFTPGo](https://img.shields.io/badge/SFTPGo-Storage-orange.svg)](https://sftpgo.com)
 
@@ -19,57 +20,56 @@ git clone https://github.com/USER/ivps.git && cd ivps && ./install.sh
 
 ---
 
-## 🏗️ Architecture des Composants
+## 🏗️ Architecture et Flux Réseau
 
 ```text
-[ Internet : 80 / 443 ]
-          │
-    ▼ [ Zoraxy Reverse Proxy (Podman) ] 
-          ├── admin.domaine.com    ──► Cockpit (Natif : 9090 via socket)
-          ├── fichiers.domaine.com ──► SFTPGo Web (:8080)
-          └── SFTP Direct (:2022)  ──► SFTPGo SFTP Server
+[ Internet : 80 / 443 ] ──► Zoraxy Reverse Proxy (Podman Rootless)
+                               ├── proxy.domaine.com    ──► Zoraxy Admin (:8000)
+                               ├── admin.domaine.com    ──► Cockpit (:9090)
+                               ├── fichiers.domaine.com ──► SFTPGo Web (:8080)
+                               └── SFTP Direct (:2022)  ──► SFTPGo Serveur
 ```
-
-- **Cockpit (Natif)** : Supervision système, métriques pcp, disques, mises à jour et cockpit-podman.
-- **Zoraxy (Podman)** : Reverse proxy unique exposé, certificats Let's Encrypt auto, WAF et filtrage IP.
-- **SFTPGo (Podman)** : Explorateur de fichiers Web moderne et serveur SFTP isolé en chroot.
-- **Systemd Linger** : Démarre automatiquement la stack utilisateur au boot sans session active.
 
 ---
 
-## ⚙️ Configuration (`.env`)
+## 🛡️ Fonctionnalités Clés & Robustesse
 
-Toutes les variables sont personnalisables dans le fichier [`.env`](file:///home/gamo/Documents/ivps/.env) :
+- **Optimisé Fedora / RHEL** : Détection DNF, règles Firewalld persistantes et étiquetage SELinux (`:Z`, `container_file_t`).
+- **Ports Dynamiques** : Détection automatique des ports occupés et réattribution sans conflit.
+- **Mot de Passe Centralisé** : Généré aléatoirement ou personnalisable dans [`.env`](file:///home/gamo/Documents/ivps/.env) avec prise en compte instantanée en rejouant `./install.sh`.
+- **Zoraxy Dédié** : Sous-domaine dédié (`proxy.votre-domaine.com`) pour une administration 100% chiffrée.
+- **Systemd Linger** : Démarrage automatique au boot sans session interactive ouverte.
+
+---
+
+## ⚙️ Configuration Rapide (`.env`)
 
 ```dotenv
 DOMAIN_NAME=votre-domaine.com
+ZORAXY_SUBDOMAIN=proxy
 COCKPIT_SUBDOMAIN=admin
 SFTPGO_SUBDOMAIN=fichiers
-ZORAXY_HTTP_PORT=80
-ZORAXY_HTTPS_PORT=443
-SFTPGO_SFTP_PORT=2022
+ADMIN_PASSWORD=             # Laissez vide pour auto-génération
 ```
 
 ---
 
 ## 🌐 Points d'Accès
 
-| Service | Interface | Adresse par défaut |
+| Service | Interface | URL / Port |
 |---|---|---|
-| **Zoraxy Setup** | Web UI | `http://<IP-SERVEUR>:8000` |
-| **Cockpit** | Web Console | `https://admin.votre-domaine.com` (ou port `9090`) |
-| **SFTPGo Web** | Web Manager | `https://fichiers.votre-domaine.com` (ou port `8080`) |
-| **Serveur SFTP** | SFTP Client | `sftp://<IP-SERVEUR>:2022` |
+| **Zoraxy Proxy** | Web UI | `https://proxy.domaine.com` (ou port `:8000`) |
+| **Cockpit** | Web Console | `https://admin.domaine.com` (ou port `:9090`) |
+| **SFTPGo Web** | Gestionnaire Fichiers | `https://fichiers.domaine.com` (ou port `:8080`) |
+| **Serveur SFTP** | Client SFTP | `sftp://admin@<IP>:2022` |
 
 ---
 
-## 🛠️ Commandes Utiles
+## 🛠️ Exploitation & Maintenance
 
 ```bash
-systemctl --user status ivps-stack.service  # État de la stack conteneurs
-journalctl --user -u ivps-stack.service -f  # Logs en direct
-./uninstall.sh                              # Désinstaller proprement
-./uninstall.sh --purge                      # Désinstaller et purger les données
+./install.sh                                # Appliquer les modifications du .env
+systemctl --user status ivps-stack.service  # Consulter le statut des conteneurs
+journalctl --user -u ivps-stack.service -f  # Suivre les journaux d'exécution
+./uninstall.sh                              # Désinstaller proprement (--purge pour effacer data/)
 ```
-
-Pour plus de détails, consultez [scripts/README.md](file:///home/gamo/Documents/ivps/scripts/README.md) et [containers/README.md](file:///home/gamo/Documents/ivps/containers/README.md).

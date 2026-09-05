@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 04_systemd_linger.sh - Activation du lingering et service systemd utilisateur
+# 04_systemd_linger.sh - Lingering et service utilisateur avec rechargement
 # ==============================================================================
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,9 +11,11 @@ load_env "${ROOT_DIR}/.env"
 
 enable_user_linger() {
     local target_user="${USER:-$(whoami)}"
-    log_info "Activation du lingering systemd pour l'utilisateur : $target_user"
+    log_info "Vérification du lingering systemd pour : $target_user"
     run_sudo loginctl enable-linger "$target_user"
-    log_success "Lingering activé pour $target_user."
+    if loginctl show-user "$target_user" -p Linger 2>/dev/null | grep -q "yes"; then
+        log_success "Lingering actif pour $target_user."
+    fi
 }
 
 install_user_service() {
@@ -23,7 +25,7 @@ install_user_service() {
     podman_bin="$(command -v podman)"
 
     mkdir -p "$user_systemd_dir"
-    log_info "Génération de l'unité systemd utilisateur : $service_file"
+    log_info "Mise à jour de l'unité systemd : $service_file"
 
     cat <<EOF > "$service_file"
 [Unit]
@@ -43,19 +45,19 @@ RestartSec=10s
 [Install]
 WantedBy=default.target
 EOF
-    log_success "Unité $service_file créée."
 }
 
 enable_and_start_service() {
     log_info "Rechargement du démon systemd utilisateur..."
     systemctl --user daemon-reload
-    log_info "Activation et démarrage du service ivps-stack..."
-    systemctl --user enable --now ivps-stack.service
-    log_success "Service ivps-stack activé et démarré."
+    log_info "Activation et redémarrage propre du service ivps-stack..."
+    systemctl --user enable ivps-stack.service
+    systemctl --user restart ivps-stack.service
+    log_success "Stack Podman démarrée et synchronisée avec le .env."
 }
 
 main() {
-    log_info "=== Étape 4 : Configuration du Lingering et de Systemd User ==="
+    log_info "=== Étape 4 : Lingering et déploiement de l'unité systemd --user ==="
     enable_user_linger
     install_user_service
     enable_and_start_service
