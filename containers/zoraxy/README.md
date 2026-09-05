@@ -13,7 +13,7 @@
 ## Configuration Initiale
 
 1. Les règles de reverse proxy sont générées automatiquement par le script d'installation (`install.sh`).
-2. Le compte administrateur `admin` est initialisé automatiquement avec le mot de passe défini dans `.env` (`ADMIN_PASSWORD`).
+2. Le compte administrateur est initialisé automatiquement avec l'identifiant défini dans `.env` (`ADMIN_USER`, par défaut `admin`) et le mot de passe maître (`ADMIN_PASSWORD`).
 3. Activez la génération de certificats SSL Let's Encrypt d'un simple clic par sous-domaine depuis l'interface Zoraxy.
 
 ## Fonctionnalités Avancées

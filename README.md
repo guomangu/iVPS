@@ -35,9 +35,10 @@ Stack d'administration moderne, légère et automatisée pour VPS (Fedora, RHEL,
 - **Routage Automatisé (Zero-Conf)** : Les règles de proxy JSON pour Zoraxy (`proxy.*`, `admin.*`, `folder.*`) sont générées dès l'installation : **aucun paramétrage manuel préalable n'est nécessaire**.
 - **Accès Direct par Sous-Domaines** : Aucun portail non authentifié sur le domaine racine. Chaque service dispose de son sous-domaine dédié (`proxy.*`, `admin.*`, `folder.*`) sollicitant les identifiants centraux dès la connexion.
 - **Identifiants Centraux & Synchronisation Automatique** :
-  - **Cockpit** : Utilisateur système OS `admin` provisionné avec accès d'administration (`wheel`/`sudo`).
-  - **Zoraxy** : Compte administrateur `admin` initialisé via l'API interne sans assistant manuel requis.
-  - **SFTPGo** : Compte `admin` synchronisé à la fois comme WebAdmin (`/web/admin`), WebClient (`/web/client`) et utilisateur SFTP (`port 2022`).
+  - **Utilisateur Personnalisable (`ADMIN_USER`)** : Choix libre de l'administrateur dans `.env` pour le synchroniser directement avec un utilisateur système natif déjà existant sur le VPS (ou en créer un nouveau).
+  - **Cockpit** : Utilisateur système OS (`ADMIN_USER`) rattaché aux privilèges d'administration (`wheel`/`sudo`).
+  - **Zoraxy** : Compte administrateur (`ADMIN_USER`) initialisé via l'API interne sans assistant manuel requis.
+  - **SFTPGo** : Compte (`ADMIN_USER`) synchronisé à la fois comme WebAdmin (`/web/admin`), WebClient (`/web/client`) et utilisateur SFTP (`port 2022`).
 - **Support Podman Rootless & SELinux** :
   - Volumes montés avec les drapeaux `:Z,U` pour adapter la propriété aux conteneurs non-privilégiés.
   - Permissions récursives gérées avec `podman unshare` pour aligner les sous-UIDs (ex: UID `1000:1000` interne de SFTPGo) sans erreur de permission sur l'hôte.
@@ -45,7 +46,7 @@ Stack d'administration moderne, légère et automatisée pour VPS (Fedora, RHEL,
   - Arrêt temporaire propre lors des ré-exécutions pour éviter les collisions avec ses propres conteneurs.
   - Rétablissement automatique des ports standards (`8000`, `8080`, `2022`) dès qu'ils sont libres.
   - Port natif de Cockpit verrouillé sur son écoute réelle (**`9090`**).
-- **Mot de Passe Maître Centralisé** : Généré aléatoirement ou personnalisable dans [`.env`](file:///home/gamo/Documents/ivps/.env) avec réapplication immédiate via `./install.sh`.
+- **Mot de Passe Maître Centralisé** : Défini via `ADMIN_PASSWORD` dans [`.env`](file:///home/gamo/Documents/ivps/.env) (ou généré automatiquement si vide) et appliqué uniformément à tous les services via `./install.sh`.
 - **Persistance Systemd (Linger)** : Service `systemd --user` (`ivps-stack.service`) activé avec `loginctl enable-linger` pour démarrer dès le boot du VPS sans session interactive ouverte.
 - **Pare-feu Automatique** : Configuration persistante pour **Firewalld** (Fedora/RHEL) et **UFW** (Debian/Ubuntu).
 - **Conformité & Modularité** : Chaque script fait strictement moins de 100 lignes de code et respecte les préconisations architecturales de [`bonne_pratique.md`](file:///home/gamo/Documents/ivps/bonne_pratique.md).
@@ -61,6 +62,9 @@ DOMAIN_NAME=votre-domaine.com
 ZORAXY_SUBDOMAIN=proxy
 COCKPIT_SUBDOMAIN=admin
 SFTPGO_SUBDOMAIN=folder
+
+# Utilisateur unifié (ex: votre utilisateur natif du VPS ou 'admin')
+ADMIN_USER=admin
 ADMIN_PASSWORD=             # Laisser vide pour génération aléatoire sécurisée
 
 ZORAXY_ADMIN_PORT=8000
@@ -90,12 +94,12 @@ chmod +x install.sh uninstall.sh
 
 ## 🔑 Tableau Récapitulatif des Accès
 
-| Interface | Service | Accès Web (Reverse Proxy) | Port Direct Hôte | Identifiants par défaut |
+| Interface | Service | Accès Web (Reverse Proxy) | Port Direct Hôte | Identifiants configurés |
 |---|---|---|---|---|
-| **Zoraxy Web Admin** | Reverse Proxy & WAF | `https://proxy.domaine.com` | `:8000` | `admin` / `<ADMIN_PASSWORD>` |
-| **Cockpit Console OS** | Administration Système | `https://admin.domaine.com` | `:9090` | `admin` / `<ADMIN_PASSWORD>` |
-| **SFTPGo Web** | Gestionnaire Fichiers Web | `https://folder.domaine.com` | `:8080` | `admin` / `<ADMIN_PASSWORD>` |
-| **SFTP Fichiers** | Transfert SFTP | *Non proxifié* | `:2022` | `admin` / `<ADMIN_PASSWORD>` |
+| **Zoraxy Web Admin** | Reverse Proxy & WAF | `https://proxy.domaine.com` | `:8000` | `<ADMIN_USER>` / `<ADMIN_PASSWORD>` |
+| **Cockpit Console OS** | Administration Système | `https://admin.domaine.com` | `:9090` | `<ADMIN_USER>` / `<ADMIN_PASSWORD>` |
+| **SFTPGo Web** | Gestionnaire Fichiers Web | `https://folder.domaine.com` | `:8080` | `<ADMIN_USER>` / `<ADMIN_PASSWORD>` |
+| **SFTP Fichiers** | Transfert SFTP | *Non proxifié* | `:2022` | `<ADMIN_USER>` / `<ADMIN_PASSWORD>` |
 
 ---
 
@@ -108,7 +112,7 @@ systemctl --user status ivps-stack.service
 # Consulter les journaux en temps réel
 journalctl --user -u ivps-stack.service -f
 
-# Mettre à jour la configuration ou changer le mot de passe
+# Mettre à jour la configuration, l'utilisateur ou le mot de passe
 nano .env
 ./install.sh
 

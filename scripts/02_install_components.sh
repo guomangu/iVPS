@@ -18,6 +18,9 @@ stop_stack_if_running() {
 
 resolve_security_and_ports() {
     stop_stack_if_running
+    if [[ -z "${ADMIN_USER:-}" ]]; then
+        update_env_var "ADMIN_USER" "admin" "$ENV_FILE"
+    fi
     if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
         update_env_var "ADMIN_PASSWORD" "$(generate_password 20)" "$ENV_FILE"
         log_success "Mot de passe administrateur généré automatiquement."

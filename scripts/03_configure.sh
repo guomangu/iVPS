@@ -31,7 +31,7 @@ EOF
 }
 
 configure_cockpit_user() {
-    local admin_user="admin"
+    local admin_user="${ADMIN_USER:-admin}"
     local pass="${ADMIN_PASSWORD}"
     local admin_group=""
 
@@ -42,16 +42,23 @@ configure_cockpit_user() {
     fi
 
     if id "$admin_user" >/dev/null 2>&1; then
-        log_info "Mise à jour du mot de passe de l'utilisateur OS '$admin_user' pour Cockpit..."
-        echo "${admin_user}:${pass}" | run_sudo chpasswd
+        log_info "Utilisateur OS '$admin_user' existant détecté."
+        if [[ -n "$admin_group" ]] && ! id -nG "$admin_user" | grep -qw "$admin_group"; then
+            run_sudo usermod -aG "$admin_group" "$admin_user"
+            log_info "Utilisateur '$admin_user' rattaché au groupe d'administration '$admin_group'."
+        fi
+        if [[ -n "$pass" ]]; then
+            log_info "Mise à jour du mot de passe pour '$admin_user'..."
+            echo "${admin_user}:${pass}" | run_sudo chpasswd
+        fi
     else
-        log_info "Création de l'utilisateur OS '$admin_user' pour l'accès d'administration Cockpit..."
+        log_info "Création de l'utilisateur OS '$admin_user' pour Cockpit..."
         local useradd_opts=(-m -s /bin/bash)
         [[ -n "$admin_group" ]] && useradd_opts+=(-G "$admin_group")
         run_sudo useradd "${useradd_opts[@]}" "$admin_user"
         echo "${admin_user}:${pass}" | run_sudo chpasswd
     fi
-    log_success "Utilisateur système '$admin_user' configuré pour Cockpit."
+    log_success "Utilisateur système '$admin_user' synchronisé pour Cockpit."
 }
 
 configure_firewall() {

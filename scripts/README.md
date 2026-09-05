@@ -8,11 +8,11 @@ Ce répertoire regroupe les scripts modulaires et idempotents responsables du cy
 |---|---|
 | [`common.sh`](file:///home/gamo/Documents/ivps/scripts/common.sh) | Fonctions transverses : affichage coloré, chargement du `.env`, détection de l'OS, allocation idempotente des ports. |
 | [`01_install_deps.sh`](file:///home/gamo/Documents/ivps/scripts/01_install_deps.sh) | Détecte le gestionnaire (`dnf`, `apt`, `pacman`) et installe Podman, Cockpit et dépendances si non présentes. |
-| [`02_install_components.sh`](file:///home/gamo/Documents/ivps/scripts/02_install_components.sh) | Génère le mot de passe maître, prépare l'arborescence des volumes, configure sysctl (ports 80/443 rootless) et le réseau Podman. |
-| [`03_configure.sh`](file:///home/gamo/Documents/ivps/scripts/03_configure.sh) | Configure Cockpit (`/etc/cockpit/cockpit.conf`), crée l'utilisateur système OS `admin` (`wheel`/`sudo`), configure le pare-feu et déclenche les règles Zoraxy. |
+| [`02_install_components.sh`](file:///home/gamo/Documents/ivps/scripts/02_install_components.sh) | Initialise `ADMIN_USER`, génère le mot de passe maître, prépare l'arborescence des volumes, configure sysctl (ports 80/443 rootless) et le réseau Podman. |
+| [`03_configure.sh`](file:///home/gamo/Documents/ivps/scripts/03_configure.sh) | Configure Cockpit (`/etc/cockpit/cockpit.conf`), synchronise l'utilisateur OS `ADMIN_USER` (`wheel`/`sudo`), configure le pare-feu et déclenche les règles Zoraxy. |
 | [`03_zoraxy_rules.sh`](file:///home/gamo/Documents/ivps/scripts/03_zoraxy_rules.sh) | Pré-configure les règles HTTP de routage direct pour les sous-domaines (`proxy.*`, `admin.*`, `folder.*`) sans portail public non filtré sur la racine. |
-| [`04_systemd_linger.sh`](file:///home/gamo/Documents/ivps/scripts/04_systemd_linger.sh) | Active `loginctl enable-linger` et déploie l'unité `systemd --user` `ivps-stack.service`. |
-| [`05_init_auth.sh`](file:///home/gamo/Documents/ivps/scripts/05_init_auth.sh) | Initialise automatiquement le compte administrateur Zoraxy et synchronise le compte `admin` SFTPGo (WebAdmin, WebClient et SFTP). |
+| [`04_systemd_linger.sh`](file:///home/gamo/Documents/ivps/scripts/04_systemd_linger.sh) | Active `loginctl enable-linger` (pour l'utilisateur courant et `ADMIN_USER`) et déploie l'unité `systemd --user` `ivps-stack.service`. |
+| [`05_init_auth.sh`](file:///home/gamo/Documents/ivps/scripts/05_init_auth.sh) | Initialise automatiquement le compte administrateur Zoraxy et synchronise le compte `ADMIN_USER` SFTPGo (WebAdmin, WebClient et SFTP). |
 | [`05_uninstall.sh`](file:///home/gamo/Documents/ivps/scripts/05_uninstall.sh) | Arrête les conteneurs, supprime le service systemd utilisateur et nettoie les configurations résiduelles. |
 
 ## Utilisation

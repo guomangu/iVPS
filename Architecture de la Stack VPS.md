@@ -48,7 +48,7 @@ Cette stack hybride (mixant installation native et conteneurs Podman rootless) o
 4. **Transfert de fichiers SFTP Direct** : Le port **2022** est exposé directement pour les clients SFTP (FileZilla, Cyberduck, VS Code).
 5. **Authentification Unifiée dès la Première Connexion** :
    * Aucun portail public non filtré sur le domaine racine.
-   * L'accès à chaque interface sollicite immédiatement les identifiants centraux définis dans le `.env` (`admin` / `ADMIN_PASSWORD`).
+   * L'accès à chaque interface sollicite immédiatement les identifiants centraux définis dans le `.env` (`ADMIN_USER` / `ADMIN_PASSWORD`).
 
 ---
 
@@ -58,7 +58,7 @@ Contrairement aux applications conteneurisées, Cockpit s'installe **directement
 
 ### Points forts techniques
 * **Consommation Zéro au repos** : Activé à la demande par socket Systemd (`cockpit.socket`), il ne consomme aucune ressource CPU/RAM en veille.
-* **Compte Administrateur OS Automatique** : Le script d'installation configure un utilisateur système `admin` doté des privilèges d'administration (`wheel`/`sudo`) synchronisé sur le mot de passe maître.
+* **Synchronisation avec Utilisateur Hôte** : Le script détecte et synchronise l'utilisateur spécifié dans `ADMIN_USER` (utilisateur natif existant du VPS ou nouveau compte), lui accorde les droits d'administration (`wheel`/`sudo`) et synchronise le mot de passe maître.
 * **cockpit-podman** : Gestion visuelle complète des conteneurs, images, réseaux et volumes Podman rootless.
 * **cockpit-storaged** : Surveillance des disques, partitionnement et santé SMART.
 * **cockpit-pcp (Performance Co-Pilot)** : Historique des métriques (CPU, RAM, E/S, Réseau) sur plusieurs jours/semaines.
@@ -71,7 +71,7 @@ Zoraxy est votre **Reverse Proxy & WAF**. C'est le bouclier réseau de votre inf
 
 ### Fonctionnalités Clés
 * **Routage Zero-Conf** : Le script `scripts/03_zoraxy_rules.sh` écrit directement les fichiers de règles au format JSON dans `conf/proxy/`. L'accès est fonctionnel dès la première minute.
-* **Initialisation Automatique d'Authentification** : Zoraxy est provisionné dès son premier démarrage avec le compte administrateur `admin` et le mot de passe maître de votre `.env`.
+* **Initialisation Automatique d'Authentification** : Zoraxy est provisionné dès son premier démarrage avec le compte administrateur `ADMIN_USER` et le mot de passe maître de votre `.env`.
 * **Gestionnaire ACME / SSL** : Certificats Let's Encrypt générés et renouvelés automatiquement avec redirection HTTPS forcée.
 * **WAF & Filtrage GeoIP** : Blocage d'adresses IP agressives, limitation de débit (rate limiting) et restriction géographique par pays.
 * **Isolation Rootless & Ports Privilégiés** : Zoraxy tourne sans privilèges root grâce à la directive sysctl `net.ipv4.ip_unprivileged_port_start=80`.
@@ -85,7 +85,7 @@ SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant
 ### Gestion avancée des permissions sous Podman Rootless
 * **Le défi des subUIDs** : Dans un conteneur rootless, SFTPGo s'exécute avec son propre UID interne non privilégié (`UID 1000:GID 1000`), qui correspond sur l'hôte à un sous-identifiant (ex: `UID 100999`).
 * **La solution de la Stack** : Utilisation conjointe du flag de volume `:Z,U` et de `podman unshare chown -R 1000:1000 data/sftpgo/srv` pour garantir des droits d'écriture sans restriction.
-* **Double Synchronisation des Comptes** : Le script configure `admin` à la fois comme super-administrateur WebAdmin et comme utilisateur WebClient / serveur SFTP (port 2022).
+* **Double Synchronisation des Comptes** : Le script configure `ADMIN_USER` à la fois comme super-administrateur WebAdmin et comme utilisateur WebClient / serveur SFTP (port 2022).
 
 ---
 
@@ -93,10 +93,10 @@ SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant
 
 | Service | Mode d'installation | Rôle | URL d'accès | Port direct hôte | Identifiant maître |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Zoraxy** | Conteneur Podman rootless | Reverse Proxy & WAF | `https://proxy.votre-domaine.com` | `8000` | `admin` / `<MDP_ENV>` |
-| **Cockpit** | Natif OS (systemd socket) | Administration Système | `https://admin.votre-domaine.com` | `9090` | `admin` / `<MDP_ENV>` |
-| **SFTPGo Web** | Conteneur Podman rootless | Gestionnaire Fichiers Web | `https://folder.votre-domaine.com` | `8080` | `admin` / `<MDP_ENV>` |
-| **SFTPGo SFTP**| Conteneur Podman rootless | Transfert SFTP sécurisé | `sftp://admin@<IP-SERVEUR>:2022` | `2022` | `admin` / `<MDP_ENV>` |
+| **Zoraxy** | Conteneur Podman rootless | Reverse Proxy & WAF | `https://proxy.votre-domaine.com` | `8000` | `<ADMIN_USER>` / `<MDP_ENV>` |
+| **Cockpit** | Natif OS (systemd socket) | Administration Système | `https://admin.votre-domaine.com` | `9090` | `<ADMIN_USER>` / `<MDP_ENV>` |
+| **SFTPGo Web** | Conteneur Podman rootless | Gestionnaire Fichiers Web | `https://folder.votre-domaine.com` | `8080` | `<ADMIN_USER>` / `<MDP_ENV>` |
+| **SFTPGo SFTP**| Conteneur Podman rootless | Transfert SFTP sécurisé | `sftp://<ADMIN_USER>@<IP-SERVEUR>:2022` | `2022` | `<ADMIN_USER>` / `<MDP_ENV>` |
 
 ---
 
@@ -107,7 +107,7 @@ SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant
 # Rendez-vous sur : https://admin.votre-domaine.com
 
 # 2. Transférer des fichiers applicatifs (ex: compose.yaml)
-sftp -P 2022 admin@<IP-SERVEUR>
+sftp -P 2022 <ADMIN_USER>@<IP-SERVEUR>
 
 # 3. Gérer les certificats SSL Let's Encrypt et le WAF
 # Rendez-vous sur : https://proxy.votre-domaine.com

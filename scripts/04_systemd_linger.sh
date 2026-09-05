@@ -11,15 +11,16 @@ load_env "${ROOT_DIR}/.env"
 
 enable_user_linger() {
     local target_user="${USER:-$(whoami)}"
+    local admin_user="${ADMIN_USER:-$target_user}"
     log_info "Vérification du lingering systemd pour : $target_user"
-    if loginctl show-user "$target_user" -p Linger 2>/dev/null | grep -q "yes"; then
-        log_success "Lingering déjà actif pour $target_user."
-        return 0
-    fi
-    run_sudo loginctl enable-linger "$target_user"
-    if loginctl show-user "$target_user" -p Linger 2>/dev/null | grep -q "yes"; then
-        log_success "Lingering actif pour $target_user."
-    fi
+    for u in "$target_user" "$admin_user"; do
+        if id "$u" >/dev/null 2>&1; then
+            if ! loginctl show-user "$u" -p Linger 2>/dev/null | grep -q "yes"; then
+                run_sudo loginctl enable-linger "$u"
+                log_success "Lingering activé pour $u."
+            fi
+        fi
+    done
 }
 
 install_user_service() {
