@@ -1,0 +1,14 @@
+# ==============================================================================
+# .gitignore - IVPS Stack
+# ==============================================================================
+
+# Données persistantes et dynamiques des conteneurs
+data/
+
+# Secrets locaux et environnement
+.env
+
+# Fichiers temporaires et traces d'exécution
+*.log
+*.tmp
+cookies.txt
