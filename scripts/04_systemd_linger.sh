@@ -21,8 +21,12 @@ enable_user_linger() {
 install_user_service() {
     local user_systemd_dir="${HOME}/.config/systemd/user"
     local service_file="${user_systemd_dir}/ivps-stack.service"
-    local podman_bin
-    podman_bin="$(command -v podman)"
+    local compose_exec
+    if command -v podman-compose >/dev/null 2>&1; then
+        compose_exec="$(command -v podman-compose)"
+    else
+        compose_exec="$(command -v podman) compose"
+    fi
 
     mkdir -p "$user_systemd_dir"
     log_info "Mise à jour de l'unité systemd : $service_file"
@@ -37,8 +41,8 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${ROOT_DIR}
-ExecStart=${podman_bin} compose -f ${ROOT_DIR}/compose.yaml up -d
-ExecStop=${podman_bin} compose -f ${ROOT_DIR}/compose.yaml down
+ExecStart=${compose_exec} -f ${ROOT_DIR}/compose.yaml up -d
+ExecStop=${compose_exec} -f ${ROOT_DIR}/compose.yaml down
 Restart=on-failure
 RestartSec=10s
 

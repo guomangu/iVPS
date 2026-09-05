@@ -50,11 +50,10 @@ setup_storage_and_selinux() {
 setup_unprivileged_ports_and_network() {
     if [[ "${ENABLE_UNPRIVILEGED_PORTS:-true}" == "true" ]]; then
         local sysctl_file="/etc/sysctl.d/99-ivps-ports.conf"
-        if [[ ! -f "$sysctl_file" ]]; then
-            log_info "Autorisation des ports 80/443 pour Podman rootless..."
-            echo "net.ipv4.ip_unprivileged_port_start=80" | run_sudo tee "$sysctl_file" >/dev/null
-            run_sudo sysctl --system >/dev/null 2>&1 || true
-        fi
+        log_info "Autorisation des ports 80/443 pour Podman rootless..."
+        echo "net.ipv4.ip_unprivileged_port_start=80" | run_sudo tee "$sysctl_file" >/dev/null
+        run_sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80 >/dev/null 2>&1 || true
+        run_sudo sysctl --system >/dev/null 2>&1 || true
     fi
     local net="${PODMAN_NETWORK:-ivps-net}"
     if ! podman network exists "$net" 2>/dev/null; then

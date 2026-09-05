@@ -36,17 +36,20 @@ configure_firewall() {
     local sftp_p="${SFTPGO_SFTP_PORT:-2022}"
     local zoraxy_p="${ZORAXY_ADMIN_PORT:-8000}"
 
-    if command -v firewall-cmd >/dev/null 2>&1 && run_sudo firewall-cmd --state >/dev/null 2>&1; then
-        log_info "Configuration du pare-feu Firewalld (Fedora / RHEL)..."
-        run_sudo firewall-cmd --permanent --add-service=cockpit || true
-        run_sudo firewall-cmd --permanent --add-port=80/tcp || true
-        run_sudo firewall-cmd --permanent --add-port=443/tcp || true
-        run_sudo firewall-cmd --permanent --add-port="${sftp_p}/tcp" || true
-        run_sudo firewall-cmd --permanent --add-port="${zoraxy_p}/tcp" || true
-        run_sudo firewall-cmd --reload || true
-        log_success "Règles Firewalld appliquées avec succès."
+    if command -v firewall-cmd >/dev/null 2>&1; then
+        run_sudo systemctl start firewalld 2>/dev/null || true
+        if run_sudo firewall-cmd --state >/dev/null 2>&1; then
+            log_info "Configuration du pare-feu Firewalld (Fedora / RHEL)..."
+            run_sudo firewall-cmd --permanent --add-service=cockpit || true
+            run_sudo firewall-cmd --permanent --add-port=80/tcp || true
+            run_sudo firewall-cmd --permanent --add-port=443/tcp || true
+            run_sudo firewall-cmd --permanent --add-port="${sftp_p}/tcp" || true
+            run_sudo firewall-cmd --permanent --add-port="${zoraxy_p}/tcp" || true
+            run_sudo firewall-cmd --reload || true
+            log_success "Règles Firewalld appliquées."
+        fi
     elif command -v ufw >/dev/null 2>&1 && run_sudo ufw status | grep -qw "active"; then
-        log_info "Configuration du pare-feu UFW (Debian / Ubuntu)..."
+        log_info "Configuration du pare-feu UFW..."
         run_sudo ufw allow 80/tcp comment 'HTTP' || true
         run_sudo ufw allow 443/tcp comment 'HTTPS' || true
         run_sudo ufw allow "${sftp_p}"/tcp comment 'SFTP' || true
