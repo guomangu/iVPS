@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 03_configure.sh - Configuration Cockpit, origines proxy et pare-feu
+# 03_configure.sh - Configuration Cockpit, origines proxy, pare-feu et compte OS
 # ==============================================================================
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,7 +20,7 @@ configure_cockpit() {
     run_sudo mkdir -p "$conf_dir"
     run_sudo tee "$conf_file" >/dev/null <<EOF
 [WebService]
-Origins = https://${admin_sub}.${domain} wss://${admin_sub}.${domain} https://${proxy_sub}.${domain} https://${domain} wss://${domain} http://localhost:${COCKPIT_PORT:-9090} http://127.0.0.1:${COCKPIT_PORT:-9090}
+Origins = https://${admin_sub}.${domain} wss://${admin_sub}.${domain} https://${proxy_sub}.${domain} http://localhost:${COCKPIT_PORT:-9090} http://127.0.0.1:${COCKPIT_PORT:-9090}
 ProtocolHeader = X-Forwarded-Proto
 ForwardedForHeader = X-Forwarded-For
 AllowUnencrypted = true
@@ -28,6 +28,30 @@ EOF
     run_sudo systemctl daemon-reload
     run_sudo systemctl enable --now cockpit.socket
     log_success "Fichier $conf_file configuré."
+}
+
+configure_cockpit_user() {
+    local admin_user="admin"
+    local pass="${ADMIN_PASSWORD}"
+    local admin_group=""
+
+    if getent group wheel >/dev/null 2>&1; then
+        admin_group="wheel"
+    elif getent group sudo >/dev/null 2>&1; then
+        admin_group="sudo"
+    fi
+
+    if id "$admin_user" >/dev/null 2>&1; then
+        log_info "Mise à jour du mot de passe de l'utilisateur OS '$admin_user' pour Cockpit..."
+        echo "${admin_user}:${pass}" | run_sudo chpasswd
+    else
+        log_info "Création de l'utilisateur OS '$admin_user' pour l'accès d'administration Cockpit..."
+        local useradd_opts=(-m -s /bin/bash)
+        [[ -n "$admin_group" ]] && useradd_opts+=(-G "$admin_group")
+        run_sudo useradd "${useradd_opts[@]}" "$admin_user"
+        echo "${admin_user}:${pass}" | run_sudo chpasswd
+    fi
+    log_success "Utilisateur système '$admin_user' configuré pour Cockpit."
 }
 
 configure_firewall() {
@@ -57,6 +81,7 @@ configure_firewall() {
 main() {
     log_info "=== Étape 3 : Configuration système, Cockpit, Pare-feu et Zoraxy ==="
     configure_cockpit
+    configure_cockpit_user
     configure_firewall
     bash "${SCRIPT_DIR}/03_zoraxy_rules.sh"
     log_success "Étape 3 terminée avec succès."

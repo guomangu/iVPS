@@ -32,31 +32,11 @@ create_zoraxy_rule() {
 EOF
 }
 
-setup_landing_page() {
-    local html_dir="$1" domain="$2" admin_sub="$3" sftp_sub="$4" proxy_sub="$5"
-    mkdir -p "$html_dir"
-    cat <<EOF > "${html_dir}/index.html"
-<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stack IVPS - ${domain}</title>
-<style>body{font-family:system-ui,-apple-system,sans-serif;background:#090d16;color:#f1f5f9;margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;}
-.c{background:#131d31;padding:2.5rem;border-radius:16px;max-width:440px;width:90%;border:1px solid #1e293b;box-shadow:0 10px 30px rgba(0,0,0,0.5);text-align:center;}
-h1{color:#38bdf8;font-size:1.6rem;margin-top:0;}p{color:#94a3b8;font-size:0.95rem;margin-bottom:2rem;}
-.b{display:block;padding:12px;margin-bottom:10px;border-radius:8px;font-weight:600;text-decoration:none;transition:0.2s;}
-.b1{background:#0284c7;color:#fff;}.b1:hover{background:#0369a1;}
-.b2{background:#1e293b;color:#cbd5e1;border:1px solid #334155;}.b2:hover{background:#334155;}
-</style></head><body><div class="c"><h1>Stack IVPS</h1><p>${domain}</p>
-<a class="b b1" href="https://${admin_sub}.${domain}">Cockpit Console OS</a>
-<a class="b b2" href="https://${sftp_sub}.${domain}">SFTPGo Fichiers</a>
-<a class="b b2" href="https://${proxy_sub}.${domain}">Zoraxy Reverse Proxy</a>
-</div></body></html>
-EOF
-}
-
 main() {
     local domain="${DOMAIN_NAME:-votre-domaine.com}"
     local admin_sub="${COCKPIT_SUBDOMAIN:-admin}"
     local proxy_sub="${ZORAXY_SUBDOMAIN:-proxy}"
-    local sftp_sub="${SFTPGO_SUBDOMAIN:-fichiers}"
+    local sftp_sub="${SFTPGO_SUBDOMAIN:-folder}"
     local base="${DATA_DIR:-${ROOT_DIR}/data}"
     local conf_dir="${base}/zoraxy/config/conf"
     local proxy_dir="${conf_dir}/proxy"
@@ -67,12 +47,15 @@ main() {
     [[ ! -f "${conf_dir}/version" ]] && echo -n "334" > "${conf_dir}/version"
     [[ "$domain" != "votre-domaine.com" ]] && rm -f "${proxy_dir}"/*votre-domaine.com*.config 2>/dev/null || true
 
-    create_zoraxy_rule "${proxy_sub}.${domain}" "127.0.0.1:8000" false "" "$proxy_dir"
-    create_zoraxy_rule "${admin_sub}.${domain}" "host.containers.internal:${COCKPIT_PORT:-9090}" true "${domain}" "$proxy_dir"
-    create_zoraxy_rule "${sftp_sub}.${domain}" "ivps-sftpgo:8080" false "" "$proxy_dir"
-    setup_landing_page "$html_dir" "$domain" "$admin_sub" "$sftp_sub" "$proxy_sub"
+    # Suppression de toute page d'accueil statique sur le domaine racine
+    rm -f "${html_dir}/index.html" 2>/dev/null || true
 
-    log_success "Règles Zoraxy créées : ${proxy_sub}.${domain}, ${admin_sub}.${domain} (+${domain}), ${sftp_sub}.${domain}."
+    # Règles de sous-domaines (pas de page d'accueil racine)
+    create_zoraxy_rule "${proxy_sub}.${domain}" "127.0.0.1:8000" false "" "$proxy_dir"
+    create_zoraxy_rule "${admin_sub}.${domain}" "host.containers.internal:${COCKPIT_PORT:-9090}" true "" "$proxy_dir"
+    create_zoraxy_rule "${sftp_sub}.${domain}" "ivps-sftpgo:8080" false "" "$proxy_dir"
+
+    log_success "Règles Zoraxy créées : ${proxy_sub}.${domain}, ${admin_sub}.${domain}, ${sftp_sub}.${domain}."
 }
 
 main "$@"

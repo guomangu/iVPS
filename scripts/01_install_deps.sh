@@ -12,7 +12,6 @@ install_dnf_deps() {
     local core_pkgs=(podman podman-compose cockpit cockpit-podman cockpit-storaged curl iproute openssl firewalld)
     local opt_pkgs=(cockpit-packagekit pcp-zeroconf)
 
-    # 1. Tentative globale avec --skip-unavailable (recommandé DNF5/DNF)
     if ! run_sudo dnf install -y --skip-unavailable "${core_pkgs[@]}" "${opt_pkgs[@]}"; then
         log_warn "Installation groupée échouée, basculement en mode granulaire..."
         for pkg in "${core_pkgs[@]}" "${opt_pkgs[@]}"; do
@@ -37,19 +36,27 @@ install_pacman_deps() {
     run_sudo pacman -Sy --noconfirm podman podman-compose cockpit cockpit-podman curl iproute2 openssl
 }
 
+are_core_deps_installed() {
+    for cmd in podman curl ss openssl cockpit-bridge; do
+        command -v "$cmd" >/dev/null 2>&1 || return 1
+    done
+    return 0
+}
+
 main() {
     log_info "=== Étape 1 : Vérification des dépendances système ==="
-    local pkg_mgr
-    pkg_mgr=$(detect_pkg_mgr)
-
-    case "$pkg_mgr" in
-        dnf)    install_dnf_deps ;;
-        apt)    install_apt_deps ;;
-        pacman) install_pacman_deps ;;
-        *)
-            log_error "Gestionnaire '$pkg_mgr' non supporté." && exit 1
-            ;;
-    esac
+    if are_core_deps_installed; then
+        log_info "Toutes les dépendances système requises sont déjà installées."
+    else
+        local pkg_mgr
+        pkg_mgr=$(detect_pkg_mgr)
+        case "$pkg_mgr" in
+            dnf)    install_dnf_deps ;;\
+            apt)    install_apt_deps ;;\
+            pacman) install_pacman_deps ;;\
+            *)      log_error "Gestionnaire '$pkg_mgr' non supporté." && exit 1 ;;
+        esac
+    fi
 
     for cmd in podman cockpit-bridge curl ss openssl; do
         if command -v "$cmd" >/dev/null 2>&1; then

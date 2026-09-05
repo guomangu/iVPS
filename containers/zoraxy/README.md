@@ -8,14 +8,13 @@
 |---|---|---|
 | `proxy.votre-domaine.com` | `http://127.0.0.1:8000` | Accès interface Zoraxy |
 | `admin.votre-domaine.com` | `http://host.containers.internal:9090` | Activer WebSocket (Cockpit) |
-| `fichiers.votre-domaine.com` | `http://ivps-sftpgo:8080` | Interface Web SFTPGo |
+| `folder.votre-domaine.com` | `http://ivps-sftpgo:8080` | Interface Web SFTPGo |
 
 ## Configuration Initiale
 
-1. Connectez-vous sur le port d'administration initial : `http://<IP-SERVEUR>:8000`.
-2. Définissez le mot de passe maître (celui indiqué dans votre `.env` à la variable `ADMIN_PASSWORD`).
-3. Créez les 3 règles de routage ci-dessus.
-4. Activez la génération de certificats SSL Let's Encrypt d'un simple clic par sous-domaine.
+1. Les règles de reverse proxy sont générées automatiquement par le script d'installation (`install.sh`).
+2. Le compte administrateur `admin` est initialisé automatiquement avec le mot de passe défini dans `.env` (`ADMIN_PASSWORD`).
+3. Activez la génération de certificats SSL Let's Encrypt d'un simple clic par sous-domaine depuis l'interface Zoraxy.
 
 ## Fonctionnalités Avancées
 - **WAF intégré** : Blocage de requêtes malveillantes et limitation de débit (rate limiting).

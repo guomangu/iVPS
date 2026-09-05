@@ -33,7 +33,6 @@ print_summary() {
     echo -e "  - Mot de passe maître   : ${C_YELLOW}${ADMIN_PASSWORD}${C_RESET}"
     echo -e "    ${C_RESET}(Personnalisable dans .env, rejouez ./install.sh pour l'appliquer)"
     echo -e "\n${C_CYAN}Points d'accès aux services :${C_RESET}"
-    echo -e "  - Portail d'accueil   : ${C_YELLOW}https://${domain}${C_RESET}"
     echo -e "  - Zoraxy Web Admin    : ${C_YELLOW}https://${ZORAXY_SUBDOMAIN:-proxy}.${domain}${C_RESET} (Direct : port ${ZORAXY_ADMIN_PORT:-8000})"
     echo -e "  - Cockpit Console OS  : ${C_YELLOW}https://${COCKPIT_SUBDOMAIN:-admin}.${domain}${C_RESET} (Direct : port ${COCKPIT_PORT:-9090})"
     echo -e "  - SFTPGo Web Client   : ${C_YELLOW}https://${SFTPGO_SUBDOMAIN:-folder}.${domain}${C_RESET} (Direct : port ${SFTPGO_WEB_PORT:-8080})"
@@ -54,6 +53,7 @@ main() {
     bash "${PROJECT_DIR}/scripts/02_install_components.sh"
     bash "${PROJECT_DIR}/scripts/03_configure.sh"
     bash "${PROJECT_DIR}/scripts/04_systemd_linger.sh"
+    bash "${PROJECT_DIR}/scripts/05_init_auth.sh"
     print_summary
 }
 

@@ -11,36 +11,44 @@ Cette stack hybride (mixant installation native et conteneurs Podman rootless) o
                                  │                    INTERNET                               │
                                  └─────────────────────┬─────────────────────────────────────┘
                                                        │
-                                  Ports 80 / 443 (HTTP/HTTPS)
-                                                       │
+                                  Ports 80 / 443 (TCP) │
                                                        ▼
                                  ┌───────────────────────────────────────────────────────────┐
-                                 │             Zoraxy Reverse Proxy & WAF                    │
-                                 │            (Conteneur Podman Rootless)                    │
-                                 └──────────┬───────────────────┬───────────────────┬────────┘
-                                            │                   │                   │
-                  admin.domaine.com (+ racine)    proxy.domaine.com      folder.domaine.com
-                                            │                   │                   │
-                                            ▼                   ▼                   ▼
-                                 ┌─────────────────────┐┌──────────────┐┌────────────────────┐
-                                 │  Cockpit Console OS ││ Zoraxy Admin ││    SFTPGo Web      │
-                                 │   (Service Natif)   ││  (Port 8000) ││   (Port 8080)      │
-                                 │     (Port 9090)     ││              ││                    │
-                                 └─────────────────────┘└──────────────┘└────────────────────┘
-                                                                                    ▲
-                                 Port 2022 Direct (SFTP)                            │
-                                 ───────────────────────────────────────────────────┘
+                                 │                    ZORAXY (Reverse Proxy & WAF)           │
+                                 │                 Conteneur Podman Rootless                 │
+                                 │        Ports d'écoute hôte : 80, 443, Admin : 8000        │
+                                 └──────────────┬──────────────────┬──────────────────┬──────┘
+                                                │                  │                  │
+               https://admin.votre-domaine.com  │                  │                  │ https://folder.votre-domaine.com
+                                                ▼                  │                  ▼
+                                 ┌─────────────────────┐           │           ┌─────────────────────┐
+                                 │  Cockpit Console OS │           │           │     SFTPGo Web      │
+                                 │   (Service Natif)   │           │           │     (Port 8080)     │
+                                 │     (Port 9090)     │           │           └─────────────────────┘
+                                 └─────────────────────┘           │                      ▲
+                                                                   ▼                      │
+                                                        https://proxy.votre-domaine.com   │
+                                                        ┌─────────────────────┐           │
+                                                        │  Zoraxy Web Admin   │           │
+                                                        │     (Port 8000)     │           │
+                                                        └─────────────────────┘           │
+                                                                                          │
+                                 Port 2022 Direct (SFTP)                                  │
+                                 ─────────────────────────────────────────────────────────┘
 ```
 
 ### Flux d'Exécution
 1. **Point d'entrée unique** : Internet contacte votre serveur exclusivement sur les ports **80** (HTTP) et **443** (HTTPS).
 2. **Filtrage et Chiffrement** : **Zoraxy** intercepte toutes les requêtes, gère le chiffrement SSL/TLS (Let's Encrypt automatique) et bloque les attaques via son WAF intégré.
-3. **Routage Automatique (Zero-Conf)** : Zoraxy dispatche instantanément vers le service approprié grâce aux règles générées dès l'installation :
-   * `admin.votre-domaine.com` (et domaine racine `votre-domaine.com`) ➔ **Cockpit** (`http://host.containers.internal:9090` avec support WebSockets).
+3. **Routage Automatique par Sous-Domaine (Zero-Conf)** : Zoraxy dispatche instantanément vers le service approprié grâce aux règles générées dès l'installation :
+   * `admin.votre-domaine.com` ➔ **Cockpit** (`http://host.containers.internal:9090` avec support WebSockets).
    * `proxy.votre-domaine.com` ➔ **Zoraxy Web Admin** (`http://127.0.0.1:8000`).
-   * `folder.votre-domaine.com` (ou `fichiers.*`) ➔ **SFTPGo Web** (`http://ivps-sftpgo:8080`).
+   * `folder.votre-domaine.com` ➔ **SFTPGo Web** (`http://ivps-sftpgo:8080`).
    * `*.votre-domaine.com` ➔ N'importe quelle future application conteneurisée.
 4. **Transfert de fichiers SFTP Direct** : Le port **2022** est exposé directement pour les clients SFTP (FileZilla, Cyberduck, VS Code).
+5. **Authentification Unifiée dès la Première Connexion** :
+   * Aucun portail public non filtré sur le domaine racine.
+   * L'accès à chaque interface sollicite immédiatement les identifiants centraux définis dans le `.env` (`admin` / `ADMIN_PASSWORD`).
 
 ---
 
@@ -50,12 +58,10 @@ Contrairement aux applications conteneurisées, Cockpit s'installe **directement
 
 ### Points forts techniques
 * **Consommation Zéro au repos** : Activé à la demande par socket Systemd (`cockpit.socket`), il ne consomme aucune ressource CPU/RAM en veille.
+* **Compte Administrateur OS Automatique** : Le script d'installation configure un utilisateur système `admin` doté des privilèges d'administration (`wheel`/`sudo`) synchronisé sur le mot de passe maître.
 * **cockpit-podman** : Gestion visuelle complète des conteneurs, images, réseaux et volumes Podman rootless.
 * **cockpit-storaged** : Surveillance des disques, partitionnement et santé SMART.
 * **cockpit-pcp (Performance Co-Pilot)** : Historique des métriques (CPU, RAM, E/S, Réseau) sur plusieurs jours/semaines.
-* **cockpit-packagekit** : Maintenance et mises à jour de sécurité du système en 1 clic.
-* **Terminal intégré** : Console Linux complète s'exécutant avec votre utilisateur système.
-* **Origines WebSocket sécurisées** : Le script configure `/etc/cockpit/cockpit.conf` pour autoriser le proxying sans rejet d'origine WebSocket (`admin.domaine.com`, `domaine.com`).
 
 ---
 
@@ -64,8 +70,8 @@ Contrairement aux applications conteneurisées, Cockpit s'installe **directement
 Zoraxy est votre **Reverse Proxy & WAF**. C'est le bouclier réseau de votre infrastructure.
 
 ### Fonctionnalités Clés
-* **Routage Zero-Conf** : Le script [`scripts/03_zoraxy_rules.sh`](file:///home/gamo/Documents/ivps/scripts/03_zoraxy_rules.sh) écrit directement les fichiers de règles au format JSON dans `conf/proxy/`. L'accès est fonctionnel dès la première minute.
-* **Portail d'Accueil Personnalisé** : Le domaine racine héberge un tableau de bord sombre et responsive (`www/html/index.html`) avec des boutons d'accès rapide vers Cockpit, SFTPGo et Zoraxy.
+* **Routage Zero-Conf** : Le script `scripts/03_zoraxy_rules.sh` écrit directement les fichiers de règles au format JSON dans `conf/proxy/`. L'accès est fonctionnel dès la première minute.
+* **Initialisation Automatique d'Authentification** : Zoraxy est provisionné dès son premier démarrage avec le compte administrateur `admin` et le mot de passe maître de votre `.env`.
 * **Gestionnaire ACME / SSL** : Certificats Let's Encrypt générés et renouvelés automatiquement avec redirection HTTPS forcée.
 * **WAF & Filtrage GeoIP** : Blocage d'adresses IP agressives, limitation de débit (rate limiting) et restriction géographique par pays.
 * **Isolation Rootless & Ports Privilégiés** : Zoraxy tourne sans privilèges root grâce à la directive sysctl `net.ipv4.ip_unprivileged_port_start=80`.
@@ -78,37 +84,31 @@ SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant
 
 ### Gestion avancée des permissions sous Podman Rootless
 * **Le défi des subUIDs** : Dans un conteneur rootless, SFTPGo s'exécute avec son propre UID interne non privilégié (`UID 1000:GID 1000`), qui correspond sur l'hôte à un sous-identifiant (ex: `UID 100999`).
-* **Montage de volume `:Z,U`** : L'option `:U` ordonne à Podman de translater récursivement les propriétaires du volume dans le user-namespace du conteneur.
-* **Gestion native via `podman unshare`** : Les permissions et la propriété du dossier `./data/sftpgo` sont gérées via `podman unshare chown -R 1000:1000` et `podman unshare chmod -R 775`, garantissant que la base SQLite `sftpgo.db` et les clés SSH sont créées et modifiées sans aucune erreur `Operation not permitted`.
-* **Chroot & Utilisateurs Virtuels** : Possibilité de créer des utilisateurs SFTP virtuels cantonnés à un dossier spécifique, sans avoir à créer d'utilisateurs système sur le serveur.
+* **La solution de la Stack** : Utilisation conjointe du flag de volume `:Z,U` et de `podman unshare chown -R 1000:1000 data/sftpgo/srv` pour garantir des droits d'écriture sans restriction.
+* **Double Synchronisation des Comptes** : Le script configure `admin` à la fois comme super-administrateur WebAdmin et comme utilisateur WebClient / serveur SFTP (port 2022).
 
 ---
 
-## **5. Idempotence, Ports Dynamiques et Synchronisation**
+## **5. Tableau Récapitulatif de la Stack**
 
-L'orchestrateur [`install.sh`](file:///home/gamo/Documents/ivps/install.sh) est conçu pour être **strictement idempotent** :
-
-* **Arrêt propre avant synchronisation** : Lors d'une ré-exécution, le script suspend temporairement la stack pour éviter de détecter ses propres conteneurs comme des ports occupés.
-* **Gestion des collisions de ports** :
-  * Si un port par défaut (`8000`, `8080`, `2022`) est libre sur l'hôte, il est automatiquement sélectionné ou rétabli.
-  * Si un service tiers externe utilise déjà ce port, le script incrémente dynamiquement vers le prochain port libre et synchronise [`.env`](file:///home/gamo/Documents/ivps/.env).
-  * Le port Cockpit natif reste fermement synchronisé sur son port d'écoute réel (**`9090`**).
-* **Mot de passe maître unique** : Centralisé dans [`.env`](file:///home/gamo/Documents/ivps/.env), il est initialisé automatiquement au premier déploiement et conservé fidèlement lors des réexécutions.
+| Service | Mode d'installation | Rôle | URL d'accès | Port direct hôte | Identifiant maître |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Zoraxy** | Conteneur Podman rootless | Reverse Proxy & WAF | `https://proxy.votre-domaine.com` | `8000` | `admin` / `<MDP_ENV>` |
+| **Cockpit** | Natif OS (systemd socket) | Administration Système | `https://admin.votre-domaine.com` | `9090` | `admin` / `<MDP_ENV>` |
+| **SFTPGo Web** | Conteneur Podman rootless | Gestionnaire Fichiers Web | `https://folder.votre-domaine.com` | `8080` | `admin` / `<MDP_ENV>` |
+| **SFTPGo SFTP**| Conteneur Podman rootless | Transfert SFTP sécurisé | `sftp://admin@<IP-SERVEUR>:2022` | `2022` | `admin` / `<MDP_ENV>` |
 
 ---
 
-## **6. Synthèse du Workflow Quotidien**
+## **6. Scénario d'Utilisation Réel**
 
 ```bash
-# 1. Déploiement initial ou mise à jour
-./install.sh
+# 1. Se connecter à la console Cockpit pour inspecter les métriques
+# Rendez-vous sur : https://admin.votre-domaine.com
 
 # 2. Transférer des fichiers applicatifs (ex: compose.yaml)
-# Via Web (https://folder.votre-domaine.com) ou SFTP (sftp://admin@<IP>:2022)
+sftp -P 2022 admin@<IP-SERVEUR>
 
-# 3. Démarrer et monitorer vos conteneurs
-# Rendez-vous sur https://admin.votre-domaine.com (Cockpit > Podman)
-
-# 4. Router une nouvelle application vers Internet
-# Ouvrez https://proxy.votre-domaine.com (Zoraxy > Reverse Proxy > Add Rule)
+# 3. Gérer les certificats SSL Let's Encrypt et le WAF
+# Rendez-vous sur : https://proxy.votre-domaine.com
 ```
