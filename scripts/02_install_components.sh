@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 02_install_components.sh - Ports dynamiques, mdp centralisé, stockage et Podman
+# 02_install_components.sh - Initialisation des répertoires, sécurité et ports
 # ==============================================================================
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,7 +8,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
 # shellcheck source=scripts/common.sh
 source "${SCRIPT_DIR}/common.sh"
-load_env "$ENV_FILE"
+load_env "${ENV_FILE}"
 
 stop_stack_if_running() {
     systemctl --user is-active --quiet ivps-stack.service 2>/dev/null && \
@@ -22,14 +22,18 @@ resolve_security_and_ports() {
         update_env_var "ADMIN_PASSWORD" "$(generate_password 20)" "$ENV_FILE"
         log_success "Mot de passe administrateur généré automatiquement."
     fi
-    [[ "$(get_env_or_default "COCKPIT_PORT" "9090")" -ne 9090 ]] && update_env_var "COCKPIT_PORT" "9090" "$ENV_FILE"
+    if [[ "$(get_env_or_default "COCKPIT_PORT" "9090")" -ne 9090 ]]; then
+        update_env_var "COCKPIT_PORT" "9090" "$ENV_FILE"
+    fi
 
     local ports_keys=("ZORAXY_ADMIN_PORT:8000" "SFTPGO_WEB_PORT:8080" "SFTPGO_SFTP_PORT:2022")
     for item in "${ports_keys[@]}"; do
         local key="${item%%:*}" def="${item##*:}" cur
         cur=$(get_env_or_default "$key" "$def")
         if ! is_port_in_use "$def"; then
-            [[ "$cur" -ne "$def" ]] && update_env_var "$key" "$def" "$ENV_FILE"
+            if [[ "$cur" -ne "$def" ]]; then
+                update_env_var "$key" "$def" "$ENV_FILE"
+            fi
         elif is_port_in_use "$cur"; then
             local free_p
             free_p=$(find_free_port "$cur")

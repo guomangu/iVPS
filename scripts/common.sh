@@ -26,7 +26,9 @@ load_env() {
 }
 
 get_env_or_default() {
-    local key="$1" def="$2" cur="$def"
+    local key="$1"
+    local def="${2:-}"
+    local cur="$def"
     if [[ -v "$key" ]]; then
         local val="${!key}"
         [[ -n "$val" ]] && cur="$val"
