@@ -15,7 +15,7 @@ Stack d'administration VPS moderne, conteneurisée et prête pour la production 
 Copiez-collez cette commande dans votre terminal VPS pour cloner et lancer l'installation :
 
 ```bash
-git clone https://github.com/USER/ivps.git && cd ivps && ./install.sh
+git clone https://github.com/guomangu/iVPS.git && cd iVPS && ./install.sh
 ```
 
 ---
