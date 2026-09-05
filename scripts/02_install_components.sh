@@ -24,7 +24,12 @@ resolve_security_and_ports() {
     # 2. Allocation dynamique des ports en cas de conflit
     local ports_keys=("ZORAXY_ADMIN_PORT:8000" "SFTPGO_WEB_PORT:8080" "SFTPGO_SFTP_PORT:2022" "COCKPIT_PORT:9090")
     for item in "${ports_keys[@]}"; do
-        local key="${item%%:*}" def="${item##*:}" cur="${!key:-$def}"
+        local key="${item%%:*}"
+        local def="${item##*:}"
+        local cur="$def"
+        if [[ -n "${key:-}" && -v "$key" && -n "${!key:-}" ]]; then
+            cur="${!key}"
+        fi
         local free_p
         free_p=$(find_free_port "$cur")
         if [[ "$free_p" -ne "$cur" ]]; then
