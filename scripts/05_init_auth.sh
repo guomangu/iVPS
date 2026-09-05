@@ -12,7 +12,7 @@ load_env "${ROOT_DIR}/.env"
 wait_for_http() {
     local url="$1" max_retries="${2:-25}"
     for ((i = 1; i <= max_retries; i++)); do
-        if curl -s -f -o /dev/null "$url" 2>/dev/null; then return 0; fi
+        if curl -s -L -f -o /dev/null "$url" 2>/dev/null; then return 0; fi
         sleep 1
     done
     return 1
@@ -24,11 +24,11 @@ init_zoraxy_admin() {
     local base_url="http://127.0.0.1:${port}"
     local cookie_jar
     cookie_jar=$(mktemp)
-    trap 'rm -f "$cookie_jar"' RETURN
 
     log_info "Attente du démarrage de Zoraxy sur le port $port..."
     if ! wait_for_http "${base_url}/login.html" 25; then
         log_warn "Zoraxy n'a pas répondu à temps pour l'initialisation des identifiants."
+        rm -f "$cookie_jar"
         return 0
     fi
 
@@ -47,6 +47,7 @@ init_zoraxy_admin() {
     else
         log_info "Compte administrateur Zoraxy déjà provisionné."
     fi
+    rm -f "$cookie_jar"
 }
 
 init_sftpgo_auth() {
@@ -55,7 +56,7 @@ init_sftpgo_auth() {
     local base_url="http://127.0.0.1:${port}"
 
     log_info "Attente du démarrage de SFTPGo sur le port $port..."
-    if ! wait_for_http "${base_url}/api/v2/version" 25; then
+    if ! wait_for_http "${base_url}/web/admin/login" 25; then
         log_warn "SFTPGo n'a pas répondu à temps pour la configuration utilisateur."
         return 0
     fi
