@@ -41,12 +41,19 @@ setup_storage_and_selinux() {
     local base="${DATA_DIR:-${ROOT_DIR}/data}"
     log_info "Création des répertoires de données persistantes dans $base..."
     mkdir -p "${base}/zoraxy/config" "${base}/zoraxy/plugin" "${base}/sftpgo/data" "${base}/sftpgo/srv"
-    chmod -R 750 "$base"
+    chmod -R 755 "$base"
 
     # Support SELinux pour Fedora / RHEL
     if command -v getenforce >/dev/null 2>&1; then
         log_info "Application du contexte SELinux (container_file_t)..."
         run_sudo chcon -R -t container_file_t "$base" 2>/dev/null || true
+    fi
+
+    # Permissions rootless Podman pour SFTPGo (UID interne 1000)
+    if command -v podman >/dev/null 2>&1; then
+        log_info "Ajustement des permissions Podman rootless pour SFTPGo..."
+        podman unshare chown -R 1000:1000 "${base}/sftpgo" 2>/dev/null || true
+        podman unshare chmod -R 775 "${base}/sftpgo" 2>/dev/null || true
     fi
 }
 

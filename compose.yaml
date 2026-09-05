@@ -8,8 +8,8 @@ services:
       - "${ZORAXY_HTTPS_PORT:-443}:443"
       - "${ZORAXY_ADMIN_PORT:-8000}:8000"
     volumes:
-      - ${DATA_DIR:-./data}/zoraxy/config:/opt/zoraxy/config:Z
-      - ${DATA_DIR:-./data}/zoraxy/plugin:/opt/zoraxy/plugin:Z
+      - ${DATA_DIR:-./data}/zoraxy/config:/opt/zoraxy/config:Z,U
+      - ${DATA_DIR:-./data}/zoraxy/plugin:/opt/zoraxy/plugin:Z,U
     environment:
       - TZ=${TZ:-UTC}
       - FASTGEOIP=true
@@ -27,8 +27,8 @@ services:
       - "${SFTPGO_WEB_PORT:-8080}:8080"
       - "${SFTPGO_SFTP_PORT:-2022}:2022"
     volumes:
-      - ${DATA_DIR:-./data}/sftpgo/data:/var/lib/sftpgo:Z
-      - ${DATA_DIR:-./data}/sftpgo/srv:/srv/sftpgo:Z
+      - ${DATA_DIR:-./data}/sftpgo/data:/var/lib/sftpgo:Z,U
+      - ${DATA_DIR:-./data}/sftpgo/srv:/srv/sftpgo:Z,U
     environment:
       - TZ=${TZ:-UTC}
       - SFTPGO_HTTPD__BINDINGS__0__PORT=8080
