@@ -34,10 +34,10 @@ Stack d'administration moderne, légère et automatisée pour VPS (Fedora, RHEL,
 
 - **Routage Automatisé (Zero-Conf)** : Les règles de proxy JSON pour Zoraxy (`proxy.*`, `admin.*`, `folder.*`) sont générées dès l'installation : **aucun paramétrage manuel préalable n'est nécessaire**.
 - **Accès Direct par Sous-Domaines** : Aucun portail non authentifié sur le domaine racine. Chaque service dispose de son sous-domaine dédié (`proxy.*`, `admin.*`, `folder.*`) sollicitant les identifiants centraux dès la connexion.
-- **Identifiants Centraux & Synchronisation Automatique** :
+- **Identifiants Centraux, Synchronisation Continue & Auto-Guérison** :
   - **Utilisateur Personnalisable (`ADMIN_USER`)** : Choix libre de l'administrateur dans `.env` pour le synchroniser directement avec un utilisateur système natif déjà existant sur le VPS (ou en créer un nouveau).
-  - **Cockpit** : Utilisateur système OS (`ADMIN_USER`) rattaché aux privilèges d'administration (`wheel`/`sudo`).
-  - **Zoraxy** : Compte administrateur (`ADMIN_USER`) initialisé via l'API interne sans assistant manuel requis.
+  - **Cockpit** : Utilisateur système OS (`ADMIN_USER`) rattaché aux privilèges d'administration (`wheel`/`sudo`) et mot de passe synchronisé.
+  - **Zoraxy** : Vérification active de session (`/api/auth/login`). En cas de changement dans `.env` ou de divergence, Zoraxy est automatiquement réinitialisé (purge de `sys.db` tout en conservant intacts les fichiers de routage `conf/proxy/`) et réenregistré avec les nouveaux identifiants.
   - **SFTPGo** : Compte (`ADMIN_USER`) synchronisé à la fois comme WebAdmin (`/web/admin`), WebClient (`/web/client`) et utilisateur SFTP (`port 2022`).
 - **Support Podman Rootless & SELinux** :
   - Volumes montés avec les drapeaux `:Z,U` pour adapter la propriété aux conteneurs non-privilégiés.

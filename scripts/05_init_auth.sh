@@ -10,38 +10,45 @@ source "${SCRIPT_DIR}/common.sh"
 load_env "${ROOT_DIR}/.env"
 
 wait_for_http() {
-    local url="$1" max_retries="${2:-25}"
-    for ((i = 1; i <= max_retries; i++)); do
-        curl -s -L -f -o /dev/null "$url" 2>/dev/null && return 0
+    for ((i = 1; i <= ${2:-25}; i++)); do
+        curl -s -L -f -o /dev/null "$1" 2>/dev/null && return 0
         sleep 1
-    done
-    return 1
+    done && return 1
+}
+
+register_zoraxy() {
+    local base="$1" user="$2" pass="$3" jar="$4" html csrf
+    html=$(curl -s -c "$jar" "${base}/login.html")
+    csrf=$(echo "$html" | grep -o 'name="zoraxy\.csrf\.Token" content="[^"]*"' | sed -E 's/.*content="([^"]+)".*/\1/' || true)
+    [[ -n "$csrf" ]] && curl -s -b "$jar" -H "X-CSRF-Token: $csrf" -d "username=${user}&password=${pass}" "${base}/api/auth/register" >/dev/null
 }
 
 init_zoraxy_admin() {
-    local port="${ZORAXY_ADMIN_PORT:-8000}" pass="${ADMIN_PASSWORD}"
-    local user="${ADMIN_USER:-admin}" base="http://127.0.0.1:${port}"
-    local cookie_jar html csrf count
-    cookie_jar=$(mktemp)
-
+    local port="${ZORAXY_ADMIN_PORT:-8000}" pass="${ADMIN_PASSWORD}" user="${ADMIN_USER:-admin}"
+    local base="http://127.0.0.1:${port}" jar html csrf count l_res=""
+    jar=$(mktemp)
     log_info "Attente du démarrage de Zoraxy sur le port $port..."
-    if ! wait_for_http "${base}/login.html" 25; then
-        log_warn "Zoraxy n'a pas répondu à temps." && rm -f "$cookie_jar" && return 0
-    fi
-
-    html=$(curl -s -c "$cookie_jar" "${base}/login.html")
+    wait_for_http "${base}/login.html" 25 || { log_warn "Zoraxy n'a pas répondu."; rm -f "$jar"; return 0; }
+    html=$(curl -s -c "$jar" "${base}/login.html")
     csrf=$(echo "$html" | grep -o 'name="zoraxy\.csrf\.Token" content="[^"]*"' | sed -E 's/.*content="([^"]+)".*/\1/' || true)
-    count=$(curl -s -b "$cookie_jar" "${base}/api/auth/userCount" 2>/dev/null || echo "1")
+    count=$(curl -s -b "$jar" "${base}/api/auth/userCount" 2>/dev/null || echo "1")
+    [[ "$count" != "0" && -n "$csrf" ]] && l_res=$(curl -s -b "$jar" -c "$jar" -H "X-CSRF-Token: $csrf" -d "username=${user}&password=${pass}" "${base}/api/auth/login" 2>/dev/null || true)
 
-    if [[ "$count" == "0" && -n "$csrf" ]]; then
-        log_info "Initialisation administrateur Zoraxy ('$user')..."
-        curl -s -b "$cookie_jar" -H "X-CSRF-Token: $csrf" \
-            -d "username=${user}&password=${pass}" "${base}/api/auth/register" >/dev/null
+    if [[ "$count" == "0" ]]; then
+        register_zoraxy "$base" "$user" "$pass" "$jar"
         log_success "Compte administrateur Zoraxy '$user' initialisé."
+    elif [[ "$l_res" == "\"OK\"" ]]; then
+        log_success "Compte administrateur Zoraxy '$user' déjà synchronisé."
     else
-        log_info "Compte administrateur Zoraxy déjà provisionné."
+        log_warn "Identifiants Zoraxy non synchronisés avec le .env. Réinitialisation..."
+        podman stop ivps-zoraxy >/dev/null 2>&1 || true
+        rm -f "${ROOT_DIR}/data/zoraxy/config/sys.db"
+        podman start ivps-zoraxy >/dev/null 2>&1 || true
+        wait_for_http "${base}/login.html" 25
+        register_zoraxy "$base" "$user" "$pass" "$jar"
+        log_success "Compte administrateur Zoraxy '$user' réinitialisé et synchronisé."
     fi
-    rm -f "$cookie_jar"
+    rm -f "$jar"
 }
 
 get_sftpgo_token() {
@@ -56,22 +63,16 @@ get_sftpgo_token() {
 }
 
 init_sftpgo_auth() {
-    local port="${SFTPGO_WEB_PORT:-8080}" pass="${ADMIN_PASSWORD}"
-    local user="${ADMIN_USER:-admin}" base="http://127.0.0.1:${port}"
+    local port="${SFTPGO_WEB_PORT:-8080}" pass="${ADMIN_PASSWORD}" user="${ADMIN_USER:-admin}" base="http://127.0.0.1:${port}"
     log_info "Attente du démarrage de SFTPGo sur le port $port..."
-    if ! wait_for_http "${base}/web/admin/login" 25; then
-        log_warn "SFTPGo n'a pas répondu à temps." && return 0
-    fi
+    wait_for_http "${base}/web/admin/login" 25 || { log_warn "SFTPGo n'a pas répondu."; return 0; }
     local tok && tok=$(get_sftpgo_token "$base" "$user" "$pass")
-    if [[ -z "$tok" ]]; then
-        log_warn "Jeton SFTPGo indisponible pour '$user'." && return 0
-    fi
+    [[ -z "$tok" ]] && { log_warn "Jeton SFTPGo indisponible pour '$user'."; return 0; }
+
     if [[ "$user" != "admin" ]]; then
         local adm_code && adm_code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $tok" "${base}/api/v2/admins/${user}")
-        if [[ "$adm_code" == "404" ]]; then
-            curl -s -X POST -H "Authorization: Bearer $tok" -H "Content-Type: application/json" \
-                -d "{\"username\":\"${user}\",\"password\":\"${pass}\",\"status\":1,\"permissions\":[\"*\"]}" "${base}/api/v2/admins" >/dev/null 2>&1 || true
-        fi
+        [[ "$adm_code" == "404" ]] && curl -s -X POST -H "Authorization: Bearer $tok" -H "Content-Type: application/json" \
+            -d "{\"username\":\"${user}\",\"password\":\"${pass}\",\"status\":1,\"permissions\":[\"*\"]}" "${base}/api/v2/admins" >/dev/null 2>&1 || true
     fi
     log_info "Synchronisation compte SFTPGo ('$user')..."
     local code && code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $tok" "${base}/api/v2/users/${user}")

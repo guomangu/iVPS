@@ -12,7 +12,7 @@ Ce répertoire regroupe les scripts modulaires et idempotents responsables du cy
 | [`03_configure.sh`](file:///home/gamo/Documents/ivps/scripts/03_configure.sh) | Configure Cockpit (`/etc/cockpit/cockpit.conf`), synchronise l'utilisateur OS `ADMIN_USER` (`wheel`/`sudo`), configure le pare-feu et déclenche les règles Zoraxy. |
 | [`03_zoraxy_rules.sh`](file:///home/gamo/Documents/ivps/scripts/03_zoraxy_rules.sh) | Pré-configure les règles HTTP de routage direct pour les sous-domaines (`proxy.*`, `admin.*`, `folder.*`) sans portail public non filtré sur la racine. |
 | [`04_systemd_linger.sh`](file:///home/gamo/Documents/ivps/scripts/04_systemd_linger.sh) | Active `loginctl enable-linger` (pour l'utilisateur courant et `ADMIN_USER`) et déploie l'unité `systemd --user` `ivps-stack.service`. |
-| [`05_init_auth.sh`](file:///home/gamo/Documents/ivps/scripts/05_init_auth.sh) | Initialise automatiquement le compte administrateur Zoraxy et synchronise le compte `ADMIN_USER` SFTPGo (WebAdmin, WebClient et SFTP). |
+| [`05_init_auth.sh`](file:///home/gamo/Documents/ivps/scripts/05_init_auth.sh) | Vérifie et synchronise automatiquement les accès de Zoraxy (avec auto-guérison de `sys.db`) et les accès de SFTPGo (WebAdmin, WebClient et SFTP). |
 | [`05_uninstall.sh`](file:///home/gamo/Documents/ivps/scripts/05_uninstall.sh) | Arrête les conteneurs, supprime le service systemd utilisateur et nettoie les configurations résiduelles. |
 
 ## Utilisation

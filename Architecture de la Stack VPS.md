@@ -58,7 +58,7 @@ Contrairement aux applications conteneurisées, Cockpit s'installe **directement
 
 ### Points forts techniques
 * **Consommation Zéro au repos** : Activé à la demande par socket Systemd (`cockpit.socket`), il ne consomme aucune ressource CPU/RAM en veille.
-* **Synchronisation avec Utilisateur Hôte** : Le script détecte et synchronise l'utilisateur spécifié dans `ADMIN_USER` (utilisateur natif existant du VPS ou nouveau compte), lui accorde les droits d'administration (`wheel`/`sudo`) et synchronise le mot de passe maître.
+* **Synchronisation avec Utilisateur Hôte** : Le script détecte et synchronise l'utilisateur spécifié dans `ADMIN_USER` (utilisateur natif existant du VPS ou nouveau compte), lui accorde les privilèges d'administration (`wheel`/`sudo`) et synchronise le mot de passe maître.
 * **cockpit-podman** : Gestion visuelle complète des conteneurs, images, réseaux et volumes Podman rootless.
 * **cockpit-storaged** : Surveillance des disques, partitionnement et santé SMART.
 * **cockpit-pcp (Performance Co-Pilot)** : Historique des métriques (CPU, RAM, E/S, Réseau) sur plusieurs jours/semaines.
@@ -69,9 +69,15 @@ Contrairement aux applications conteneurisées, Cockpit s'installe **directement
 
 Zoraxy est votre **Reverse Proxy & WAF**. C'est le bouclier réseau de votre infrastructure.
 
-### Fonctionnalités Clés
+### Fonctionnalités Clés & Gestion de l'Authentification
 * **Routage Zero-Conf** : Le script `scripts/03_zoraxy_rules.sh` écrit directement les fichiers de règles au format JSON dans `conf/proxy/`. L'accès est fonctionnel dès la première minute.
-* **Initialisation Automatique d'Authentification** : Zoraxy est provisionné dès son premier démarrage avec le compte administrateur `ADMIN_USER` et le mot de passe maître de votre `.env`.
+* **Séparation Stockage (`conf/` vs `sys.db`)** :
+  - `conf/` : Héberge la configuration réseau, les certificats SSL et les règles de proxy sous forme de fichiers JSON persistants.
+  - `sys.db` : Base embarquée BoltDB contenant les sessions d'administration et les métriques de trafic.
+* **Auto-Guérison et Synchronisation Continue** :
+  - Lors de chaque exécution de `./install.sh`, le script teste activement l'authentification (`POST /api/auth/login`) avec les identifiants déclarés dans `.env`.
+  - **Identifiants inchangés** : Aucune coupure, les sessions et métriques sont conservées.
+  - **Identifiants modifiés ou non alignés** : Zoraxy est réinitialisé automatiquement (purge de `sys.db` sans affecter les règles `conf/`), redémarré et réinscrit instantanément avec les nouveaux identifiants `ADMIN_USER` et `ADMIN_PASSWORD`.
 * **Gestionnaire ACME / SSL** : Certificats Let's Encrypt générés et renouvelés automatiquement avec redirection HTTPS forcée.
 * **WAF & Filtrage GeoIP** : Blocage d'adresses IP agressives, limitation de débit (rate limiting) et restriction géographique par pays.
 * **Isolation Rootless & Ports Privilégiés** : Zoraxy tourne sans privilèges root grâce à la directive sysctl `net.ipv4.ip_unprivileged_port_start=80`.
@@ -111,4 +117,8 @@ sftp -P 2022 <ADMIN_USER>@<IP-SERVEUR>
 
 # 3. Gérer les certificats SSL Let's Encrypt et le WAF
 # Rendez-vous sur : https://proxy.votre-domaine.com
+
+# 4. Mettre à jour les identifiants ou reconfigurer
+nano .env
+./install.sh
 ```
