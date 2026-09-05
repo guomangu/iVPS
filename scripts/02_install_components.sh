@@ -26,10 +26,8 @@ resolve_security_and_ports() {
     for item in "${ports_keys[@]}"; do
         local key="${item%%:*}"
         local def="${item##*:}"
-        local cur="$def"
-        if [[ -n "${key:-}" && -v "$key" && -n "${!key:-}" ]]; then
-            cur="${!key}"
-        fi
+        local cur
+        cur=$(get_env_or_default "$key" "$def")
         local free_p
         free_p=$(find_free_port "$cur")
         if [[ "$free_p" -ne "$cur" ]]; then

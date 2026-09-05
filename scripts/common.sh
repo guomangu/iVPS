@@ -25,6 +25,15 @@ load_env() {
     fi
 }
 
+get_env_or_default() {
+    local key="$1" def="$2" cur="$def"
+    if [[ -v "$key" ]]; then
+        local val="${!key}"
+        [[ -n "$val" ]] && cur="$val"
+    fi
+    echo "$cur"
+}
+
 update_env_var() {
     local key="$1" val="$2" file="$3"
     if grep -q "^${key}=" "$file" 2>/dev/null; then
