@@ -1,0 +1,6 @@
+[WebService]
+# Remplacez avec votre domaine réel (ex: admin.votre-domaine.com)
+Origins = https://admin.votre-domaine.com wss://admin.votre-domaine.com http://localhost:9090
+ProtocolHeader = X-Forwarded-Proto
+ForwardedForHeader = X-Forwarded-For
+AllowUnencrypted = true
