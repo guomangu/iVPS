@@ -37,7 +37,7 @@ Stack d'administration moderne, légère et automatisée pour VPS (Fedora, RHEL,
 - **Identifiants Centraux & Synchronisation Automatique** :
   - **Cockpit** : Utilisateur système OS `admin` provisionné avec accès d'administration (`wheel`/`sudo`).
   - **Zoraxy** : Compte administrateur `admin` initialisé via l'API interne sans assistant manuel requis.
-  - **SFTPGo** : Compte `admin` synchronisé en tant qu'administrateur WebAdmin et utilisateur WebClient / SFTP.
+  - **SFTPGo** : Compte `admin` synchronisé à la fois comme WebAdmin (`/web/admin`), WebClient (`/web/client`) et utilisateur SFTP (`port 2022`).
 - **Support Podman Rootless & SELinux** :
   - Volumes montés avec les drapeaux `:Z,U` pour adapter la propriété aux conteneurs non-privilégiés.
   - Permissions récursives gérées avec `podman unshare` pour aligner les sous-UIDs (ex: UID `1000:1000` interne de SFTPGo) sans erreur de permission sur l'hôte.
@@ -48,12 +48,13 @@ Stack d'administration moderne, légère et automatisée pour VPS (Fedora, RHEL,
 - **Mot de Passe Maître Centralisé** : Généré aléatoirement ou personnalisable dans [`.env`](file:///home/gamo/Documents/ivps/.env) avec réapplication immédiate via `./install.sh`.
 - **Persistance Systemd (Linger)** : Service `systemd --user` (`ivps-stack.service`) activé avec `loginctl enable-linger` pour démarrer dès le boot du VPS sans session interactive ouverte.
 - **Pare-feu Automatique** : Configuration persistante pour **Firewalld** (Fedora/RHEL) et **UFW** (Debian/Ubuntu).
+- **Conformité & Modularité** : Chaque script fait strictement moins de 100 lignes de code et respecte les préconisations architecturales de [`bonne_pratique.md`](file:///home/gamo/Documents/ivps/bonne_pratique.md).
 
 ---
 
 ## ⚙️ Configuration Rapide (`.env`)
 
-Toutes les variables sont ajustables dans le fichier `.env` à la racine du projet :
+Toutes les variables sont personnalisables dans le fichier `.env` à la racine du projet :
 
 ```ini
 DOMAIN_NAME=votre-domaine.com
@@ -68,6 +69,9 @@ SFTPGO_SFTP_PORT=2022
 COCKPIT_PORT=9090
 ```
 
+> [!NOTE]
+> Le fichier `.env` ainsi que le dossier de données persistantes `data/` sont protégés par le [`.gitignore`](file:///home/gamo/Documents/ivps/.gitignore) et ne sont jamais poussés sur Git.
+
 ---
 
 ## ⚡ Déploiement en Une Commande
@@ -79,6 +83,9 @@ chmod +x install.sh uninstall.sh
 ./install.sh
 ```
 
+> [!IMPORTANT]
+> Exécutez toujours le script avec `./install.sh` ou `bash install.sh` (et non `sh install.sh`) afin de bénéficier de l'interpréteur Bash complet et du mode strict (`set -euo pipefail`).
+
 ---
 
 ## 🔑 Tableau Récapitulatif des Accès
@@ -87,7 +94,7 @@ chmod +x install.sh uninstall.sh
 |---|---|---|---|---|
 | **Zoraxy Web Admin** | Reverse Proxy & WAF | `https://proxy.domaine.com` | `:8000` | `admin` / `<ADMIN_PASSWORD>` |
 | **Cockpit Console OS** | Administration Système | `https://admin.domaine.com` | `:9090` | `admin` / `<ADMIN_PASSWORD>` |
-| **SFTPGo Web** | Gestionnaire Fichiers | `https://folder.domaine.com` | `:8080` | `admin` / `<ADMIN_PASSWORD>` |
+| **SFTPGo Web** | Gestionnaire Fichiers Web | `https://folder.domaine.com` | `:8080` | `admin` / `<ADMIN_PASSWORD>` |
 | **SFTP Fichiers** | Transfert SFTP | *Non proxifié* | `:2022` | `admin` / `<ADMIN_PASSWORD>` |
 
 ---

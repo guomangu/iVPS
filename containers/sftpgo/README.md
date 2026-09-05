@@ -1,13 +1,17 @@
-# SFTPGo - Gestionnaire de Fichiers & SFTP
+# SFTPGo - Gestionnaire de Fichiers Web & SFTP
 
 [SFTPGo](https://sftpgo.com/) fournit un serveur SFTP robuste et une interface web moderne de gestion de fichiers.
 
-## Authentification et Sécurité
+## Authentification et Synchronisation Centralisée
 
-- **Compte Administrateur Automatisé** :
-  - Identifiant : `admin`
+- **Compte Administrateur Unique** :
+  - Identifiant universel : `admin`
   - Mot de passe : Synchronisé avec `ADMIN_PASSWORD` défini dans le fichier `.env`.
-- **Chroot & Isolation** : Les utilisateurs créés n'ont aucun compte système Unix sur le VPS hôte.
+- **Double Rôle Automatisé** :
+  - **WebAdmin** (`/web/admin`) : Gestion complète des partages, quotas, protocoles et utilisateurs.
+  - **WebClient** (`https://folder.votre-domaine.com` ou direct `:8080`) : Explorateur de fichiers interactif dans le navigateur avec upload/download glisser-déposer.
+  - **Serveur SFTP** (`sftp://admin@<IP>:2022`) : Connexion directe pour FileZilla, VS Code, Cyberduck avec accès complet au stockage partagé.
+- **Chroot & Isolation Rootless** : Les utilisateurs de fichiers SFTPGo n'ont aucun compte shell système Unix non restreint sur le serveur VPS hôte.
 
 ## Ports et Stockage
 
@@ -20,4 +24,4 @@
 
 Pour modifier le mot de passe d'administration central :
 1. Modifiez la variable `ADMIN_PASSWORD` dans `.env`.
-2. Relancez `./install.sh` pour actualiser l'environnement du conteneur.
+2. Relancez `./install.sh` (ou `bash install.sh`) pour synchroniser automatiquement l'ensemble des accès.
