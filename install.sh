@@ -15,6 +15,13 @@ init_env() {
     fi
 }
 
+stop_active_stack() {
+    if systemctl --user is-active --quiet ivps-stack.service 2>/dev/null; then
+        log_info "Synchronisation : arrêt temporaire de la stack active..."
+        systemctl --user stop ivps-stack.service 2>/dev/null || true
+    fi
+}
+
 print_summary() {
     load_env "${PROJECT_DIR}/.env"
     local domain="${DOMAIN_NAME:-votre-domaine.com}"
@@ -26,9 +33,10 @@ print_summary() {
     echo -e "  - Mot de passe maître   : ${C_YELLOW}${ADMIN_PASSWORD}${C_RESET}"
     echo -e "    ${C_RESET}(Personnalisable dans .env, rejouez ./install.sh pour l'appliquer)"
     echo -e "\n${C_CYAN}Points d'accès aux services :${C_RESET}"
+    echo -e "  - Portail d'accueil   : ${C_YELLOW}https://${domain}${C_RESET}"
     echo -e "  - Zoraxy Web Admin    : ${C_YELLOW}https://${ZORAXY_SUBDOMAIN:-proxy}.${domain}${C_RESET} (Direct : port ${ZORAXY_ADMIN_PORT:-8000})"
     echo -e "  - Cockpit Console OS  : ${C_YELLOW}https://${COCKPIT_SUBDOMAIN:-admin}.${domain}${C_RESET} (Direct : port ${COCKPIT_PORT:-9090})"
-    echo -e "  - SFTPGo Web Client   : ${C_YELLOW}https://${SFTPGO_SUBDOMAIN:-fichiers}.${domain}${C_RESET} (Direct : port ${SFTPGO_WEB_PORT:-8080})"
+    echo -e "  - SFTPGo Web Client   : ${C_YELLOW}https://${SFTPGO_SUBDOMAIN:-folder}.${domain}${C_RESET} (Direct : port ${SFTPGO_WEB_PORT:-8080})"
     echo -e "  - SFTP Serveur Fichiers: ${C_YELLOW}sftp://admin@<IP-SERVEUR>:${SFTPGO_SFTP_PORT:-2022}${C_RESET}"
     echo -e "\n${C_CYAN}Commandes d'exploitation :${C_RESET}"
     echo -e "  - Statut de la stack   : ${C_YELLOW}systemctl --user status ivps-stack.service${C_RESET}"
@@ -41,6 +49,7 @@ print_summary() {
 main() {
     log_info "Lancement du déploiement / synchronisation de la stack IVPS..."
     init_env
+    stop_active_stack
     bash "${PROJECT_DIR}/scripts/01_install_deps.sh"
     bash "${PROJECT_DIR}/scripts/02_install_components.sh"
     bash "${PROJECT_DIR}/scripts/03_configure.sh"

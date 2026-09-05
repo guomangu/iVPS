@@ -10,28 +10,30 @@ ENV_FILE="${ROOT_DIR}/.env"
 source "${SCRIPT_DIR}/common.sh"
 load_env "$ENV_FILE"
 
-resolve_security_and_ports() {
-    # 1. Mot de passe centralisé
-    if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
-        local gen_pwd
-        gen_pwd=$(generate_password 20)
-        update_env_var "ADMIN_PASSWORD" "$gen_pwd" "$ENV_FILE"
-        log_success "Mot de passe administrateur généré automatiquement."
-    else
-        log_info "Mot de passe administrateur existant conservé depuis .env."
-    fi
+stop_stack_if_running() {
+    systemctl --user is-active --quiet ivps-stack.service 2>/dev/null && \
+        systemctl --user stop ivps-stack.service 2>/dev/null || true
+    command -v podman >/dev/null 2>&1 && podman stop ivps-zoraxy ivps-sftpgo 2>/dev/null || true
+}
 
-    # 2. Allocation dynamique des ports en cas de conflit
-    local ports_keys=("ZORAXY_ADMIN_PORT:8000" "SFTPGO_WEB_PORT:8080" "SFTPGO_SFTP_PORT:2022" "COCKPIT_PORT:9090")
+resolve_security_and_ports() {
+    stop_stack_if_running
+    if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+        update_env_var "ADMIN_PASSWORD" "$(generate_password 20)" "$ENV_FILE"
+        log_success "Mot de passe administrateur généré automatiquement."
+    fi
+    [[ "$(get_env_or_default "COCKPIT_PORT" "9090")" -ne 9090 ]] && update_env_var "COCKPIT_PORT" "9090" "$ENV_FILE"
+
+    local ports_keys=("ZORAXY_ADMIN_PORT:8000" "SFTPGO_WEB_PORT:8080" "SFTPGO_SFTP_PORT:2022")
     for item in "${ports_keys[@]}"; do
-        local key="${item%%:*}"
-        local def="${item##*:}"
-        local cur
+        local key="${item%%:*}" def="${item##*:}" cur
         cur=$(get_env_or_default "$key" "$def")
-        local free_p
-        free_p=$(find_free_port "$cur")
-        if [[ "$free_p" -ne "$cur" ]]; then
-            log_warn "Port $cur ($key) déjà utilisé ! Attribution dynamique du port $free_p."
+        if ! is_port_in_use "$def"; then
+            [[ "$cur" -ne "$def" ]] && update_env_var "$key" "$def" "$ENV_FILE"
+        elif is_port_in_use "$cur"; then
+            local free_p
+            free_p=$(find_free_port "$cur")
+            log_warn "Port $cur ($key) utilisé ! Attribution dynamique du port $free_p."
             update_env_var "$key" "$free_p" "$ENV_FILE"
         fi
     done
@@ -39,17 +41,15 @@ resolve_security_and_ports() {
 
 setup_storage_and_selinux() {
     local base="${DATA_DIR:-${ROOT_DIR}/data}"
-    log_info "Création des répertoires de données persistantes dans $base..."
+    log_info "Création des répertoires de données dans $base..."
     mkdir -p "${base}/zoraxy/config" "${base}/zoraxy/plugin" "${base}/sftpgo/data" "${base}/sftpgo/srv"
-    chmod -R 755 "$base"
+    chmod 755 "$base" 2>/dev/null || true
+    chmod -R 755 "${base}/zoraxy" 2>/dev/null || true
 
-    # Support SELinux pour Fedora / RHEL
     if command -v getenforce >/dev/null 2>&1; then
         log_info "Application du contexte SELinux (container_file_t)..."
         run_sudo chcon -R -t container_file_t "$base" 2>/dev/null || true
     fi
-
-    # Permissions rootless Podman pour SFTPGo (UID interne 1000)
     if command -v podman >/dev/null 2>&1; then
         log_info "Ajustement des permissions Podman rootless pour SFTPGo..."
         podman unshare chown -R 1000:1000 "${base}/sftpgo" 2>/dev/null || true
