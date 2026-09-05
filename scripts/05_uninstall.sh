@@ -10,14 +10,16 @@ source "${SCRIPT_DIR}/common.sh"
 load_env "${ROOT_DIR}/.env"
 
 PURGE_DATA=false
-[[ "${1:-}" == "--purge" ]] && PURGE_DATA=true
+for arg in "$@"; do
+    [[ "$arg" == "--purge" ]] && PURGE_DATA=true
+done
 
 stop_user_service() {
     local service_file="${HOME}/.config/systemd/user/ivps-stack.service"
     log_info "Arrêt et désactivation du service systemd utilisateur..."
-    if systemctl --user list-unit-files | grep -qw "ivps-stack.service"; then
-        systemctl --user stop ivps-stack.service || true
-        systemctl --user disable ivps-stack.service || true
+    if systemctl --user list-unit-files 2>/dev/null | grep -qw "ivps-stack.service"; then
+        systemctl --user stop ivps-stack.service 2>/dev/null || true
+        systemctl --user disable ivps-stack.service 2>/dev/null || true
         rm -f "$service_file"
         systemctl --user daemon-reload
         log_success "Service systemd ivps-stack supprimé."
@@ -25,12 +27,12 @@ stop_user_service() {
 }
 
 teardown_containers() {
-    log_info "Arrêt des conteneurs Podman..."
+    log_info "Arrêt et suppression des conteneurs Podman..."
     if command -v podman >/dev/null 2>&1; then
         podman rm -f ivps-zoraxy ivps-sftpgo 2>/dev/null || true
         local net="${PODMAN_NETWORK:-ivps-net}"
         if podman network exists "$net" 2>/dev/null; then
-            podman network rm "$net" || true
+            podman network rm "$net" 2>/dev/null || true
             log_success "Réseau Podman '$net' supprimé."
         fi
     fi
@@ -39,18 +41,18 @@ teardown_containers() {
 clean_configs() {
     local sysctl_conf="/etc/sysctl.d/99-ivps-ports.conf"
     if [[ -f "$sysctl_conf" ]]; then
-        log_info "Nettoyage du réglage sysctl ports..."
+        log_info "Nettoyage de la configuration sysctl..."
         run_sudo rm -f "$sysctl_conf"
         run_sudo sysctl --system >/dev/null 2>&1 || true
     fi
 
+    local base="${DATA_DIR:-${ROOT_DIR}/data}"
     if [[ "$PURGE_DATA" == "true" ]]; then
-        local base="${DATA_DIR:-${ROOT_DIR}/data}"
         log_warn "Suppression définitive des données persistantes ($base)..."
         rm -rf "$base"
-        log_success "Données supprimées."
+        log_success "Dossier de données supprimé."
     else
-        log_info "Données conservées dans ${DATA_DIR:-${ROOT_DIR}/data}. Utilisez '--purge' pour tout effacer."
+        log_info "Données conservées dans $base. Utilisez '--purge' pour les supprimer."
     fi
 }
 
