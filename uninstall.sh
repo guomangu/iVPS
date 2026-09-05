@@ -2,6 +2,9 @@
 # ==============================================================================
 # uninstall.sh - Script principal de désinstallation de la stack IVPS
 # ==============================================================================
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
 set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/common.sh
@@ -30,13 +33,13 @@ confirm_action() {
     done
 
     if [[ "$force" != "true" ]]; then
-        local msg="Êtes-vous sûr de vouloir désinstaller la stack IVPS ? [y/N] "
+        local msg="Êtes-vous sûr de vouloir désinstaller la stack IVPS ? [o/O/y/Y/N] "
         if [[ "$purge" == "true" ]]; then
-            msg="ATTENTION : L'option --purge supprimera également le dossier de données (./data). Continuer ? [y/N] "
+            msg="ATTENTION : L'option --purge supprimera également le dossier de données (./data). Continuer ? [o/O/y/Y/N] "
         fi
         read -r -p "$msg" response
         case "$response" in
-            [yY][eE][sS]|[yY]) return 0 ;;
+            [yY][eE][sS]|[yY]|[oO][uU][iI]|[oO]) return 0 ;;
             *)
                 log_info "Désinstallation annulée."
                 exit 0

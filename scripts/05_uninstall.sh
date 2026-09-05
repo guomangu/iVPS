@@ -17,18 +17,24 @@ done
 stop_user_service() {
     local service_file="${HOME}/.config/systemd/user/ivps-stack.service"
     log_info "Arrêt et désactivation du service systemd utilisateur..."
-    if systemctl --user list-unit-files 2>/dev/null | grep -qw "ivps-stack.service"; then
-        systemctl --user stop ivps-stack.service 2>/dev/null || true
-        systemctl --user disable ivps-stack.service 2>/dev/null || true
-        rm -f "$service_file"
-        systemctl --user daemon-reload
-        log_success "Service systemd ivps-stack supprimé."
-    fi
+    systemctl --user stop ivps-stack.service 2>/dev/null || true
+    systemctl --user disable ivps-stack.service 2>/dev/null || true
+    rm -f "$service_file"
+    systemctl --user daemon-reload 2>/dev/null || true
+    systemctl --user reset-failed 2>/dev/null || true
 }
 
 teardown_containers() {
     log_info "Arrêt et suppression des conteneurs Podman..."
+    if [[ -f "${ROOT_DIR}/compose.yaml" ]]; then
+        if command -v podman-compose >/dev/null 2>&1; then
+            podman-compose -f "${ROOT_DIR}/compose.yaml" down 2>/dev/null || true
+        elif command -v podman >/dev/null 2>&1; then
+            podman compose -f "${ROOT_DIR}/compose.yaml" down 2>/dev/null || true
+        fi
+    fi
     if command -v podman >/dev/null 2>&1; then
+        podman stop ivps-zoraxy ivps-sftpgo 2>/dev/null || true
         podman rm -f ivps-zoraxy ivps-sftpgo 2>/dev/null || true
         local net="${PODMAN_NETWORK:-ivps-net}"
         if podman network exists "$net" 2>/dev/null; then
