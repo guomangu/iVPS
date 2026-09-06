@@ -1,14 +1,14 @@
 # Zoraxy - Reverse Proxy, WAF & Sécurité
 
-[Zoraxy](https://zoraxy.arozos.com/) sert de point d'entrée HTTP/HTTPS unique pour tous les services de la stack VPS.
+[Zoraxy](https://zoraxy.arozos.com/) sert de point d'entrée HTTP/HTTPS unique pour tous les services de la stack VPS. Il s'exécute en mode réseau hôte (`--network host`).
 
 ## Interfaces et Routage
 
 | Domaine Cible | Destination Interne | Options Requises |
 |---|---|---|
 | `proxy.votre-domaine.com` | `http://127.0.0.1:8000` | Accès interface Zoraxy |
-| `admin.votre-domaine.com` | `http://host.containers.internal:9090` | Activer WebSocket (Cockpit) |
-| `folder.votre-domaine.com` | `http://ivps-sftpgo:8080` | Interface Web SFTPGo |
+| `admin.votre-domaine.com` | `http://127.0.0.1:9090` | Activer WebSocket (Cockpit) |
+| `folder.votre-domaine.com` | `http://127.0.0.1:8080` | Interface Web SFTPGo |
 
 ## Configuration Initiale & Gestion des Accès
 

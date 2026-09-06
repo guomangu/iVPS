@@ -1,6 +1,6 @@
 # **Stack d'Administration VPS : Zoraxy + Cockpit + SFTPGo**
 
-Cette stack hybride (mixant installation native et conteneurs Podman rootless) offre un équilibre parfait entre **sécurité**, **facilité d'utilisation** (interfaces web automatisées) et **puissance d'administration**.
+Cette stack hybride (mixant installation native et conteneurs Podman rootless en mode réseau hôte `--network host`) offre un équilibre parfait entre **sécurité**, **facilité d'utilisation** (interfaces web automatisées) et **puissance d'administration**.
 
 ---
 
@@ -15,7 +15,7 @@ Cette stack hybride (mixant installation native et conteneurs Podman rootless) o
                                                        ▼
                                  ┌───────────────────────────────────────────────────────────┐
                                  │                    ZORAXY (Reverse Proxy & WAF)           │
-                                 │                 Conteneur Podman Rootless                 │
+                                 │         Conteneur Podman Rootless (--network host)        │
                                  │        Ports d'écoute hôte : 80, 443, Admin : 8000        │
                                  └──────────────┬──────────────────┬──────────────────┬──────┘
                                                 │                  │                  │
@@ -23,10 +23,10 @@ Cette stack hybride (mixant installation native et conteneurs Podman rootless) o
                                                 ▼                  │                  ▼
                                  ┌─────────────────────┐           │           ┌─────────────────────┐
                                  │  Cockpit Console OS │           │           │     SFTPGo Web      │
-                                 │   (Service Natif)   │           │           │     (Port 8080)     │
-                                 │     (Port 9090)     │           │           └─────────────────────┘
-                                 └─────────────────────┘           │                      ▲
-                                                                   ▼                      │
+                                 │   (Service Natif)   │           │           │  (--network host)   │
+                                 │     (Port 9090)     │           │           │     (Port 8080)     │
+                                 └─────────────────────┘           │           └─────────────────────┘
+                                                                   ▼                      ▲
                                                         https://proxy.votre-domaine.com   │
                                                         ┌─────────────────────┐           │
                                                         │  Zoraxy Web Admin   │           │
@@ -40,10 +40,10 @@ Cette stack hybride (mixant installation native et conteneurs Podman rootless) o
 ### Flux d'Exécution
 1. **Point d'entrée unique** : Internet contacte votre serveur exclusivement sur les ports **80** (HTTP) et **443** (HTTPS).
 2. **Filtrage et Chiffrement** : **Zoraxy** intercepte toutes les requêtes, gère le chiffrement SSL/TLS (Let's Encrypt automatique) et bloque les attaques via son WAF intégré.
-3. **Routage Automatique par Sous-Domaine (Zero-Conf)** : Zoraxy dispatche instantanément vers le service approprié grâce aux règles générées dès l'installation :
-   * `admin.votre-domaine.com` ➔ **Cockpit** (`http://host.containers.internal:9090` avec support WebSockets).
+3. **Routage Automatique par Sous-Domaine (Zero-Conf)** : Zoraxy dispatche instantanément vers le service approprié grâce aux règles générées dès l'installation (communication directe sur l'interface loopback hôte) :
+   * `admin.votre-domaine.com` ➔ **Cockpit** (`http://127.0.0.1:9090` avec support WebSockets).
    * `proxy.votre-domaine.com` ➔ **Zoraxy Web Admin** (`http://127.0.0.1:8000`).
-   * `folder.votre-domaine.com` ➔ **SFTPGo Web** (`http://ivps-sftpgo:8080`).
+   * `folder.votre-domaine.com` ➔ **SFTPGo Web** (`http://127.0.0.1:8080`).
    * `*.votre-domaine.com` ➔ N'importe quelle future application conteneurisée.
 4. **Transfert de fichiers SFTP Direct** : Le port **2022** est exposé directement pour les clients SFTP (FileZilla, Cyberduck, VS Code).
 5. **Authentification Unifiée dès la Première Connexion** :
@@ -65,9 +65,9 @@ Contrairement aux applications conteneurisées, Cockpit s'installe **directement
 
 ---
 
-## **3. Zoraxy : Le Routeur, Vigile & WAF (Conteneur Podman Rootless)**
+## **3. Zoraxy : Le Routeur, Vigile & WAF (Conteneur Podman Rootless - Mode Host)**
 
-Zoraxy est votre **Reverse Proxy & WAF**. C'est le bouclier réseau de votre infrastructure.
+Zoraxy est votre **Reverse Proxy & WAF**. C'est le bouclier réseau de votre infrastructure. Exécuté avec `--network host`, il communique sans latence ni surcharge de translation d'adresse (NAT) avec les services locaux.
 
 ### Fonctionnalités Clés & Gestion de l'Authentification
 * **Routage Zero-Conf** : Le script `scripts/03_zoraxy_rules.sh` écrit directement les fichiers de règles au format JSON dans `conf/proxy/`. L'accès est fonctionnel dès la première minute.
@@ -84,9 +84,9 @@ Zoraxy est votre **Reverse Proxy & WAF**. C'est le bouclier réseau de votre inf
 
 ---
 
-## **4. SFTPGo : Le Gestionnaire de Fichiers & SFTP (Conteneur Podman Rootless)**
+## **4. SFTPGo : Le Gestionnaire de Fichiers & SFTP (Conteneur Podman Rootless - Mode Host)**
 
-SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant interface web et accès SFTP haute sécurité.
+SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant interface web et accès SFTP haute sécurité, branché directement sur la pile réseau de l'hôte (`--network host`).
 
 ### Gestion avancée des permissions sous Podman Rootless
 * **Le défi des subUIDs** : Dans un conteneur rootless, SFTPGo s'exécute avec son propre UID interne non privilégié (`UID 1000:GID 1000`), qui correspond sur l'hôte à un sous-identifiant (ex: `UID 100999`).
@@ -99,10 +99,10 @@ SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant
 
 | Service | Mode d'installation | Rôle | URL d'accès | Port direct hôte | Identifiant maître |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Zoraxy** | Conteneur Podman rootless | Reverse Proxy & WAF | `https://proxy.votre-domaine.com` | `8000` | `<ADMIN_USER>` / `<MDP_ENV>` |
+| **Zoraxy** | Conteneur Podman rootless (`--network host`) | Reverse Proxy & WAF | `https://proxy.votre-domaine.com` | `8000` | `<ADMIN_USER>` / `<MDP_ENV>` |
 | **Cockpit** | Natif OS (systemd socket) | Administration Système | `https://admin.votre-domaine.com` | `9090` | `<ADMIN_USER>` / `<MDP_ENV>` |
-| **SFTPGo Web** | Conteneur Podman rootless | Gestionnaire Fichiers Web | `https://folder.votre-domaine.com` | `8080` | `<ADMIN_USER>` / `<MDP_ENV>` |
-| **SFTPGo SFTP**| Conteneur Podman rootless | Transfert SFTP sécurisé | `sftp://<ADMIN_USER>@<IP-SERVEUR>:2022` | `2022` | `<ADMIN_USER>` / `<MDP_ENV>` |
+| **SFTPGo Web** | Conteneur Podman rootless (`--network host`) | Gestionnaire Fichiers Web | `https://folder.votre-domaine.com` | `8080` | `<ADMIN_USER>` / `<MDP_ENV>` |
+| **SFTPGo SFTP**| Conteneur Podman rootless (`--network host`) | Transfert SFTP sécurisé | `sftp://<ADMIN_USER>@<IP-SERVEUR>:2022` | `2022` | `<ADMIN_USER>` / `<MDP_ENV>` |
 
 ---
 

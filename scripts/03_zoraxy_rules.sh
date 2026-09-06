@@ -50,10 +50,10 @@ main() {
     # Suppression de toute page d'accueil statique sur le domaine racine
     rm -f "${html_dir}/index.html" 2>/dev/null || true
 
-    # Règles de sous-domaines (pas de page d'accueil racine)
-    create_zoraxy_rule "${proxy_sub}.${domain}" "127.0.0.1:8000" false "" "$proxy_dir"
-    create_zoraxy_rule "${admin_sub}.${domain}" "host.containers.internal:${COCKPIT_PORT:-9090}" true "" "$proxy_dir"
-    create_zoraxy_rule "${sftp_sub}.${domain}" "ivps-sftpgo:8080" false "" "$proxy_dir"
+    # Règles de sous-domaines (mode hôte: loopback 127.0.0.1)
+    create_zoraxy_rule "${proxy_sub}.${domain}" "127.0.0.1:${ZORAXY_ADMIN_PORT:-8000}" false "" "$proxy_dir"
+    create_zoraxy_rule "${admin_sub}.${domain}" "127.0.0.1:${COCKPIT_PORT:-9090}" true "" "$proxy_dir"
+    create_zoraxy_rule "${sftp_sub}.${domain}" "127.0.0.1:${SFTPGO_WEB_PORT:-8080}" false "" "$proxy_dir"
 
     log_success "Règles Zoraxy créées : ${proxy_sub}.${domain}, ${admin_sub}.${domain}, ${sftp_sub}.${domain}."
 }

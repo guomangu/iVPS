@@ -6,22 +6,22 @@
 [![SFTPGo](https://img.shields.io/badge/SFTPGo-Web%20%26%20SFTP-4CAF50)](https://sftpgo.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Stack d'administration moderne, légère et automatisée pour VPS (Fedora, RHEL, Debian, Ubuntu). Elle associe la puissance de **Cockpit** (administration système native) à l'isolation de conteneurs **Podman rootless** pour **Zoraxy** (Reverse Proxy & WAF) et **SFTPGo** (Gestionnaire de fichiers Web et serveur SFTP).
+Stack d'administration moderne, légère et automatisée pour VPS (Fedora, RHEL, Debian, Ubuntu). Elle associe la puissance de **Cockpit** (administration système native) à l'isolation de conteneurs **Podman rootless en mode host (`--network host`)** pour **Zoraxy** (Reverse Proxy & WAF) et **SFTPGo** (Gestionnaire de fichiers Web et serveur SFTP).
 
 ---
 
 ## 🎯 Composants de la Stack
 
-1. **Zoraxy** *(Conteneur Podman Rootless)* : Reverse Proxy, WAF applicatif, gestionnaire de certificats SSL/TLS Let's Encrypt, GeoIP blocking et redirection HTTPS automatique.
+1. **Zoraxy** *(Conteneur Podman Rootless, mode `--network host`)* : Reverse Proxy, WAF applicatif, gestionnaire de certificats SSL/TLS Let's Encrypt, GeoIP blocking et redirection HTTPS automatique.
 2. **Cockpit** *(Service Natif Host OS)* : Tour de contrôle système activée par socket Systemd (consommation mémoire nulle au repos), surveillance des ressources en direct, gestionnaire de paquets et de stockage.
-3. **SFTPGo** *(Conteneur Podman Rootless)* : Gestionnaire de fichiers Web moderne et serveur SFTP haute performance sur port dédié.
+3. **SFTPGo** *(Conteneur Podman Rootless, mode `--network host`)* : Gestionnaire de fichiers Web moderne et serveur SFTP haute performance sur port dédié.
 
 ---
 
 ## 🏗️ Architecture et Flux Réseau
 
 ```text
-[ Internet : 80 / 443 ] ──► Zoraxy Reverse Proxy (Podman Rootless)
+[ Internet : 80 / 443 ] ──► Zoraxy Reverse Proxy (Podman Rootless, --network host)
                                ├── admin.domaine.com  ──► Cockpit Console OS (:9090)
                                ├── proxy.domaine.com  ──► Zoraxy Admin Web (:8000)
                                └── folder.domaine.com ──► SFTPGo Web (:8080)
@@ -40,6 +40,7 @@ Stack d'administration moderne, légère et automatisée pour VPS (Fedora, RHEL,
   - **Zoraxy** : Vérification active de session (`/api/auth/login`). En cas de changement dans `.env` ou de divergence, Zoraxy est automatiquement réinitialisé (purge de `sys.db` tout en conservant intacts les fichiers de routage `conf/proxy/`) et réenregistré avec les nouveaux identifiants.
   - **SFTPGo** : Compte (`ADMIN_USER`) synchronisé à la fois comme WebAdmin (`/web/admin`), WebClient (`/web/client`) et utilisateur SFTP (`port 2022`).
 - **Support Podman Rootless & SELinux** :
+  - Mode Réseau Hôte (`--network host`) : Communication directe et ultra-rapide sans latence de pont ni translation d'adresse (NAT).
   - Volumes montés avec les drapeaux `:Z,U` pour adapter la propriété aux conteneurs non-privilégiés.
   - Permissions récursives gérées avec `podman unshare` pour aligner les sous-UIDs (ex: UID `1000:1000` interne de SFTPGo) sans erreur de permission sur l'hôte.
 - **Allocation Dynamique & Idempotente des Ports** :

@@ -3,41 +3,26 @@ services:
     image: ${ZORAXY_IMAGE:-zoraxydocker/zoraxy:latest}
     container_name: ivps-zoraxy
     restart: unless-stopped
-    ports:
-      - "${ZORAXY_HTTP_PORT:-80}:80"
-      - "${ZORAXY_HTTPS_PORT:-443}:443"
-      - "${ZORAXY_ADMIN_PORT:-8000}:8000"
+    network_mode: host
     volumes:
       - ${DATA_DIR:-./data}/zoraxy/config:/opt/zoraxy/config:Z,U
       - ${DATA_DIR:-./data}/zoraxy/plugin:/opt/zoraxy/plugin:Z,U
     environment:
       - TZ=${TZ:-UTC}
       - FASTGEOIP=true
-    extra_hosts:
-      - "host.containers.internal:host-gateway"
-      - "host.docker.internal:host-gateway"
-    networks:
-      - ivps-network
 
   sftpgo:
     image: ${SFTPGO_IMAGE:-drakkan/sftpgo:latest}
     container_name: ivps-sftpgo
     restart: unless-stopped
-    ports:
-      - "${SFTPGO_WEB_PORT:-8080}:8080"
-      - "${SFTPGO_SFTP_PORT:-2022}:2022"
+    network_mode: host
     volumes:
       - ${DATA_DIR:-./data}/sftpgo/data:/var/lib/sftpgo:Z,U
       - ${DATA_DIR:-./data}/sftpgo/srv:/srv/sftpgo:Z,U
     environment:
       - TZ=${TZ:-UTC}
-      - SFTPGO_HTTPD__BINDINGS__0__PORT=8080
+      - SFTPGO_HTTPD__BINDINGS__0__PORT=${SFTPGO_WEB_PORT:-8080}
+      - SFTPGO_SFTPD__BINDINGS__0__PORT=${SFTPGO_SFTP_PORT:-2022}
       - SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN=true
       - SFTPGO_DEFAULT_ADMIN_USERNAME=${ADMIN_USER:-admin}
       - SFTPGO_DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
-    networks:
-      - ivps-network
-
-networks:
-  ivps-network:
-    name: ${PODMAN_NETWORK:-ivps-net}
