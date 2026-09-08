@@ -97,7 +97,7 @@ chmod +x install.sh uninstall.sh
 |---|---|---|---|---|
 | **Zoraxy Web Admin** | Reverse Proxy & WAF | `https://proxy.domaine.com` | `:8000` | `<ADMIN_USER>` / `<ADMIN_PASSWORD>` |
 | **Cockpit Console OS** | Administration Système | `https://admin.domaine.com` | `:9090` | `<ADMIN_USER>` / `<ADMIN_PASSWORD>` |
-| **pgAdmin Web** | Interface Web PostgreSQL | `https://db.domaine.com` | `:5050` | `<ADMIN_USER>` / `<ADMIN_PASSWORD>` |
+| **pgAdmin Web** | Interface Web PostgreSQL | `https://db.domaine.com` | `:5050` | `<ADMIN_USER>@<DOMAIN>` / `<ADMIN_PASSWORD>` |
 | **Base de Données** | Non applicable | *Non applicable* | `Non applicable` | `<ADMIN_USER>` / `<ADMIN_PASSWORD>` |
 
 ---
