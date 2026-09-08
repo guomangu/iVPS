@@ -7,7 +7,7 @@ La stack repose sur des conteneurs exécutés en mode **rootless Podman** avec l
 | Service | Image | Rôle | Mode Réseau | Ports Directs Hôte |
 |---|---|---|---|---|
 | **Zoraxy** | `zoraxydocker/zoraxy:latest` | Reverse Proxy, SSL automatique, WAF | Host (`--network host`) | 80, 443, 8000 |
-| **SFTPGo** | `drakkan/sftpgo:latest` | Gestionnaire de fichiers Web et serveur SFTP | Host (`--network host`) | 8080, 2022 |
+| **pgAdmin** | `dpage/pgadmin4:latest` | Interface Web administrative pour PostgreSQL | Host (`--network host`) | 5050 |
 
 ## Cycle de Vie
 

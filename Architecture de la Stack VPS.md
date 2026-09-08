@@ -1,4 +1,4 @@
-# **Stack d'Administration VPS : Zoraxy + Cockpit + SFTPGo**
+# **Stack d'Administration VPS : Zoraxy + Cockpit + pgAdmin**
 
 Cette stack hybride (mixant installation native et conteneurs Podman rootless en mode réseau hôte `--network host`) offre un équilibre parfait entre **sécurité**, **facilité d'utilisation** (interfaces web automatisées) et **puissance d'administration**.
 
@@ -19,22 +19,19 @@ Cette stack hybride (mixant installation native et conteneurs Podman rootless en
                                  │        Ports d'écoute hôte : 80, 443, Admin : 8000        │
                                  └──────────────┬──────────────────┬──────────────────┬──────┘
                                                 │                  │                  │
-               https://admin.votre-domaine.com  │                  │                  │ https://folder.votre-domaine.com
+               https://admin.votre-domaine.com  │                  │                  │ https://db.votre-domaine.com
                                                 ▼                  │                  ▼
                                  ┌─────────────────────┐           │           ┌─────────────────────┐
-                                 │  Cockpit Console OS │           │           │     SFTPGo Web      │
+                                 │  Cockpit Console OS │           │           │     pgAdmin 4       │
                                  │   (Service Natif)   │           │           │  (--network host)   │
-                                 │     (Port 9090)     │           │           │     (Port 8080)     │
+                                 │     (Port 9090)     │           │           │     (Port 5050)     │
                                  └─────────────────────┘           │           └─────────────────────┘
-                                                                   ▼                      ▲
-                                                        https://proxy.votre-domaine.com   │
-                                                        ┌─────────────────────┐           │
-                                                        │  Zoraxy Web Admin   │           │
-                                                        │     (Port 8000)     │           │
-                                                        └─────────────────────┘           │
-                                                                                          │
-                                 Port 2022 Direct (SFTP)                                  │
-                                 ─────────────────────────────────────────────────────────┘
+                                                                   ▼
+                                                        https://proxy.votre-domaine.com
+                                                        ┌─────────────────────┐
+                                                        │  Zoraxy Web Admin   │
+                                                        │     (Port 8000)     │
+                                                        └─────────────────────┘
 ```
 
 ### Flux d'Exécution
@@ -43,10 +40,9 @@ Cette stack hybride (mixant installation native et conteneurs Podman rootless en
 3. **Routage Automatique par Sous-Domaine (Zero-Conf)** : Zoraxy dispatche instantanément vers le service approprié grâce aux règles générées dès l'installation (communication directe sur l'interface loopback hôte) :
    * `admin.votre-domaine.com` ➔ **Cockpit** (`http://127.0.0.1:9090` avec support WebSockets).
    * `proxy.votre-domaine.com` ➔ **Zoraxy Web Admin** (`http://127.0.0.1:8000`).
-   * `folder.votre-domaine.com` ➔ **SFTPGo Web** (`http://127.0.0.1:8080`).
+   * `db.votre-domaine.com` ➔ **pgAdmin 4** (`http://127.0.0.1:5050`).
    * `*.votre-domaine.com` ➔ N'importe quelle future application conteneurisée.
-4. **Transfert de fichiers SFTP Direct** : Le port **2022** est exposé directement pour les clients SFTP (FileZilla, Cyberduck, VS Code).
-5. **Authentification Unifiée dès la Première Connexion** :
+4. **Authentification Unifiée dès la Première Connexion** :
    * Aucun portail public non filtré sur le domaine racine.
    * L'accès à chaque interface sollicite immédiatement les identifiants centraux définis dans le `.env` (`ADMIN_USER` / `ADMIN_PASSWORD`).
 
@@ -60,8 +56,6 @@ Contrairement aux applications conteneurisées, Cockpit s'installe **directement
 * **Consommation Zéro au repos** : Activé à la demande par socket Systemd (`cockpit.socket`), il ne consomme aucune ressource CPU/RAM en veille.
 * **Synchronisation avec Utilisateur Hôte** : Le script détecte et synchronise l'utilisateur spécifié dans `ADMIN_USER` (utilisateur natif existant du VPS ou nouveau compte), lui accorde les privilèges d'administration (`wheel`/`sudo`) et synchronise le mot de passe maître.
 * **cockpit-podman** : Gestion visuelle complète des conteneurs, images, réseaux et volumes Podman rootless.
-* **cockpit-storaged** : Surveillance des disques, partitionnement et santé SMART.
-* **cockpit-pcp (Performance Co-Pilot)** : Historique des métriques (CPU, RAM, E/S, Réseau) sur plusieurs jours/semaines.
 
 ---
 
@@ -75,23 +69,19 @@ Zoraxy est votre **Reverse Proxy & WAF**. C'est le bouclier réseau de votre inf
   - `conf/` : Héberge la configuration réseau, les certificats SSL et les règles de proxy sous forme de fichiers JSON persistants.
   - `sys.db` : Base embarquée BoltDB contenant les sessions d'administration et les métriques de trafic.
 * **Auto-Guérison et Synchronisation Continue** :
-  - Lors de chaque exécution de `./install.sh`, le script teste activement l'authentification (`POST /api/auth/login`) avec les identifiants déclarés dans `.env`.
-  - **Identifiants inchangés** : Aucune coupure, les sessions et métriques sont conservées.
-  - **Identifiants modifiés ou non alignés** : Zoraxy est réinitialisé automatiquement (purge de `sys.db` sans affecter les règles `conf/`), redémarré et réinscrit instantanément avec les nouveaux identifiants `ADMIN_USER` et `ADMIN_PASSWORD`.
+  - Lors de chaque exécution de `./install.sh`, le script teste activement l'authentification avec les identifiants déclarés dans `.env`.
 * **Gestionnaire ACME / SSL** : Certificats Let's Encrypt générés et renouvelés automatiquement avec redirection HTTPS forcée.
-* **WAF & Filtrage GeoIP** : Blocage d'adresses IP agressives, limitation de débit (rate limiting) et restriction géographique par pays.
-* **Isolation Rootless & Ports Privilégiés** : Zoraxy tourne sans privilèges root grâce à la directive sysctl `net.ipv4.ip_unprivileged_port_start=80`.
 
 ---
 
-## **4. SFTPGo : Le Gestionnaire de Fichiers & SFTP (Conteneur Podman Rootless - Mode Host)**
+## **4. pgAdmin : L'Administration PostgreSQL Web (Conteneur Podman Rootless - Mode Host)**
 
-SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant interface web et accès SFTP haute sécurité, branché directement sur la pile réseau de l'hôte (`--network host`).
+pgAdmin 4 permet d'administrer graphiquement vos bases de données PostgreSQL via une interface web, branché directement sur la pile réseau de l'hôte (`--network host`).
 
 ### Gestion avancée des permissions sous Podman Rootless
-* **Le défi des subUIDs** : Dans un conteneur rootless, SFTPGo s'exécute avec son propre UID interne non privilégié (`UID 1000:GID 1000`), qui correspond sur l'hôte à un sous-identifiant (ex: `UID 100999`).
-* **La solution de la Stack** : Utilisation conjointe du flag de volume `:Z,U` et de `podman unshare chown -R 1000:1000 data/sftpgo/srv` pour garantir des droits d'écriture sans restriction.
-* **Double Synchronisation des Comptes** : Le script configure `ADMIN_USER` à la fois comme super-administrateur WebAdmin et comme utilisateur WebClient / serveur SFTP (port 2022).
+* **Le défi des subUIDs** : Dans un conteneur rootless, pgAdmin s'exécute avec son propre UID interne non privilégié (`UID 5050:GID 5050`), qui correspond sur l'hôte à un sous-identifiant dédié.
+* **La solution de la Stack** : Utilisation conjointe du flag de volume `:Z,U` et de `podman unshare chown -R 5050:5050 data/pgadmin` pour garantir des droits d'écriture sans restriction au volume pgAdmin.
+* **Synchronisation des Comptes** : Le script configure `PGADMIN_DEFAULT_EMAIL` et `PGADMIN_DEFAULT_PASSWORD` depuis les variables `.env`.
 
 ---
 
@@ -101,8 +91,7 @@ SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Zoraxy** | Conteneur Podman rootless (`--network host`) | Reverse Proxy & WAF | `https://proxy.votre-domaine.com` | `8000` | `<ADMIN_USER>` / `<MDP_ENV>` |
 | **Cockpit** | Natif OS (systemd socket) | Administration Système | `https://admin.votre-domaine.com` | `9090` | `<ADMIN_USER>` / `<MDP_ENV>` |
-| **SFTPGo Web** | Conteneur Podman rootless (`--network host`) | Gestionnaire Fichiers Web | `https://folder.votre-domaine.com` | `8080` | `<ADMIN_USER>` / `<MDP_ENV>` |
-| **SFTPGo SFTP**| Conteneur Podman rootless (`--network host`) | Transfert SFTP sécurisé | `sftp://<ADMIN_USER>@<IP-SERVEUR>:2022` | `2022` | `<ADMIN_USER>` / `<MDP_ENV>` |
+| **pgAdmin 4** | Conteneur Podman rootless (`--network host`) | UI de base de données | `https://db.votre-domaine.com` | `5050` | `<ADMIN_USER>@<DOMAIN>` / `<MDP_ENV>` |
 
 ---
 
@@ -112,8 +101,8 @@ SFTPGo remplace avantageusement les serveurs FTP/SFTP traditionnels en combinant
 # 1. Se connecter à la console Cockpit pour inspecter les métriques
 # Rendez-vous sur : https://admin.votre-domaine.com
 
-# 2. Transférer des fichiers applicatifs (ex: compose.yaml)
-sftp -P 2022 <ADMIN_USER>@<IP-SERVEUR>
+# 2. Gérer vos bases de données PostgreSQL
+# Rendez-vous sur : https://db.votre-domaine.com
 
 # 3. Gérer les certificats SSL Let's Encrypt et le WAF
 # Rendez-vous sur : https://proxy.votre-domaine.com

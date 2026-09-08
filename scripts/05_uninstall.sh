@@ -34,8 +34,8 @@ teardown_containers() {
         fi
     fi
     if command -v podman >/dev/null 2>&1; then
-        podman stop ivps-zoraxy ivps-sftpgo 2>/dev/null || true
-        podman rm -f ivps-zoraxy ivps-sftpgo 2>/dev/null || true
+        podman stop ivps-zoraxy ivps-pgadmin 2>/dev/null || true
+        podman rm -f ivps-zoraxy ivps-sftpgo ivps-pgadmin 2>/dev/null || true
         local net="${PODMAN_NETWORK:-ivps-net}"
         if podman network exists "$net" 2>/dev/null; then
             podman network rm "$net" 2>/dev/null || true

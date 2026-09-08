@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 05_init_auth.sh - Initialisation et synchronisation des accès Zoraxy et SFTPGo
+# 05_init_auth.sh - Initialisation et synchronisation des accès Zoraxy
 # ==============================================================================
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,45 +51,18 @@ init_zoraxy_admin() {
     rm -f "$jar"
 }
 
-get_sftpgo_token() {
-    local base="$1" user="$2" pass="$3" resp tok
-    resp=$(curl -s -u "${user}:${pass}" "${base}/api/v2/token" 2>/dev/null || true)
-    tok=$(echo "$resp" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4 || true)
-    if [[ -z "$tok" && "$user" != "admin" ]]; then
-        resp=$(curl -s -u "admin:${pass}" "${base}/api/v2/token" 2>/dev/null || true)
-        tok=$(echo "$resp" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4 || true)
-    fi
-    echo "$tok"
-}
-
-init_sftpgo_auth() {
-    local port="${SFTPGO_WEB_PORT:-8080}" pass="${ADMIN_PASSWORD}" user="${ADMIN_USER:-admin}" base="http://127.0.0.1:${port}"
-    log_info "Attente du démarrage de SFTPGo sur le port $port..."
-    wait_for_http "${base}/web/admin/login" 25 || { log_warn "SFTPGo n'a pas répondu."; return 0; }
-    local tok && tok=$(get_sftpgo_token "$base" "$user" "$pass")
-    [[ -z "$tok" ]] && { log_warn "Jeton SFTPGo indisponible pour '$user'."; return 0; }
-
-    if [[ "$user" != "admin" ]]; then
-        local adm_code && adm_code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $tok" "${base}/api/v2/admins/${user}")
-        [[ "$adm_code" == "404" ]] && curl -s -X POST -H "Authorization: Bearer $tok" -H "Content-Type: application/json" \
-            -d "{\"username\":\"${user}\",\"password\":\"${pass}\",\"status\":1,\"permissions\":[\"*\"]}" "${base}/api/v2/admins" >/dev/null 2>&1 || true
-    fi
-    log_info "Synchronisation compte SFTPGo ('$user')..."
-    local code && code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $tok" "${base}/api/v2/users/${user}")
-    local u_payload="{\"username\":\"${user}\",\"password\":\"${pass}\",\"status\":1,\"home_dir\":\"/srv/sftpgo/data/${user}\",\"permissions\":{\"/\" :[\"*\"]}}"
-    if [[ "$code" == "404" ]]; then
-        curl -s -X POST -H "Authorization: Bearer $tok" -H "Content-Type: application/json" -d "$u_payload" "${base}/api/v2/users" >/dev/null
-        log_success "Compte SFTPGo '$user' créé (WebClient et SFTP)."
-    elif [[ "$code" == "200" ]]; then
-        curl -s -X PUT -H "Authorization: Bearer $tok" -H "Content-Type: application/json" -d "$u_payload" "${base}/api/v2/users/${user}" >/dev/null
-        log_success "Compte SFTPGo '$user' synchronisé."
-    fi
+check_pgadmin() {
+    local port="${PGADMIN_PORT:-5050}"
+    local base="http://127.0.0.1:${port}"
+    log_info "Attente du démarrage de pgAdmin 4 sur le port $port..."
+    wait_for_http "${base}/login" 30 || { log_warn "pgAdmin n'a pas répondu à temps."; return 0; }
+    log_success "pgAdmin 4 est prêt et opérationnel (configuré via variables d'environnement)."
 }
 
 main() {
     log_info "=== Étape 5 : Initialisation et synchronisation des identifiants ==="
     init_zoraxy_admin
-    init_sftpgo_auth
+    check_pgadmin
     log_success "Étape 5 terminée avec succès."
 }
 

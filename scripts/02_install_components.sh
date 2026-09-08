@@ -11,9 +11,10 @@ source "${SCRIPT_DIR}/common.sh"
 load_env "${ENV_FILE}"
 
 stop_stack_if_running() {
+    command -v podman >/dev/null 2>&1 && podman rm -f ivps-sftpgo 2>/dev/null || true
     systemctl --user is-active --quiet ivps-stack.service 2>/dev/null && \
         systemctl --user stop ivps-stack.service 2>/dev/null || true
-    command -v podman >/dev/null 2>&1 && podman stop ivps-zoraxy ivps-sftpgo 2>/dev/null || true
+    command -v podman >/dev/null 2>&1 && podman stop ivps-zoraxy ivps-sftpgo ivps-pgadmin 2>/dev/null || true
 }
 
 resolve_security_and_ports() {
@@ -29,7 +30,7 @@ resolve_security_and_ports() {
         update_env_var "COCKPIT_PORT" "9090" "$ENV_FILE"
     fi
 
-    local ports_keys=("ZORAXY_ADMIN_PORT:8000" "SFTPGO_WEB_PORT:8080" "SFTPGO_SFTP_PORT:2022")
+    local ports_keys=("ZORAXY_ADMIN_PORT:8000" "PGADMIN_PORT:5050")
     for item in "${ports_keys[@]}"; do
         local key="${item%%:*}" def="${item##*:}" cur
         cur=$(get_env_or_default "$key" "$def")
@@ -49,7 +50,7 @@ resolve_security_and_ports() {
 setup_storage_and_selinux() {
     local base="${DATA_DIR:-${ROOT_DIR}/data}"
     log_info "Création des répertoires de données dans $base..."
-    mkdir -p "${base}/zoraxy/config" "${base}/zoraxy/plugin" "${base}/sftpgo/data" "${base}/sftpgo/srv"
+    mkdir -p "${base}/zoraxy/config" "${base}/zoraxy/plugin" "${base}/pgadmin"
     chmod 755 "$base" 2>/dev/null || true
     chmod -R 755 "${base}/zoraxy" 2>/dev/null || true
 
@@ -58,9 +59,9 @@ setup_storage_and_selinux() {
         run_sudo chcon -R -t container_file_t "$base" 2>/dev/null || true
     fi
     if command -v podman >/dev/null 2>&1; then
-        log_info "Ajustement des permissions Podman rootless pour SFTPGo..."
-        podman unshare chown -R 1000:1000 "${base}/sftpgo" 2>/dev/null || true
-        podman unshare chmod -R 775 "${base}/sftpgo" 2>/dev/null || true
+        log_info "Ajustement des permissions Podman rootless pour pgAdmin..."
+        podman unshare chown -R 5050:5050 "${base}/pgadmin" 2>/dev/null || true
+        podman unshare chmod -R 775 "${base}/pgadmin" 2>/dev/null || true
     fi
 }
 
@@ -86,7 +87,7 @@ main() {
     setup_unprivileged_ports_and_network
     log_info "Téléchargement des images Podman..."
     podman pull "${ZORAXY_IMAGE:-zoraxydocker/zoraxy:latest}"
-    podman pull "${SFTPGO_IMAGE:-drakkan/sftpgo:latest}"
+    podman pull "${PGADMIN_IMAGE:-dpage/pgadmin4:latest}"
     log_success "Étape 2 terminée avec succès."
 }
 

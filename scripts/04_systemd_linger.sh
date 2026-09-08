@@ -38,7 +38,7 @@ install_user_service() {
 
     cat <<EOF > "$service_file"
 [Unit]
-Description=IVPS Stack (Zoraxy & SFTPGo via Podman Compose)
+Description=IVPS Stack (Zoraxy & pgAdmin via Podman Compose)
 After=network-online.target
 Wants=network-online.target
 

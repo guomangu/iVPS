@@ -8,7 +8,7 @@
 |---|---|---|
 | `proxy.votre-domaine.com` | `http://127.0.0.1:8000` | Accès interface Zoraxy |
 | `admin.votre-domaine.com` | `http://127.0.0.1:9090` | Activer WebSocket (Cockpit) |
-| `folder.votre-domaine.com` | `http://127.0.0.1:8080` | Interface Web SFTPGo |
+| `db.votre-domaine.com` | `http://127.0.0.1:5050` | Interface Web pgAdmin |
 
 ## Configuration Initiale & Gestion des Accès
 

@@ -36,7 +36,7 @@ main() {
     local domain="${DOMAIN_NAME:-votre-domaine.com}"
     local admin_sub="${COCKPIT_SUBDOMAIN:-admin}"
     local proxy_sub="${ZORAXY_SUBDOMAIN:-proxy}"
-    local sftp_sub="${SFTPGO_SUBDOMAIN:-folder}"
+    local pgadmin_sub="${PGADMIN_SUBDOMAIN:-db}"
     local base="${DATA_DIR:-${ROOT_DIR}/data}"
     local conf_dir="${base}/zoraxy/config/conf"
     local proxy_dir="${conf_dir}/proxy"
@@ -53,9 +53,9 @@ main() {
     # Règles de sous-domaines (mode hôte: loopback 127.0.0.1)
     create_zoraxy_rule "${proxy_sub}.${domain}" "127.0.0.1:${ZORAXY_ADMIN_PORT:-8000}" false "" "$proxy_dir"
     create_zoraxy_rule "${admin_sub}.${domain}" "127.0.0.1:${COCKPIT_PORT:-9090}" true "" "$proxy_dir"
-    create_zoraxy_rule "${sftp_sub}.${domain}" "127.0.0.1:${SFTPGO_WEB_PORT:-8080}" false "" "$proxy_dir"
+    create_zoraxy_rule "${pgadmin_sub}.${domain}" "127.0.0.1:${PGADMIN_PORT:-5050}" false "" "$proxy_dir"
 
-    log_success "Règles Zoraxy créées : ${proxy_sub}.${domain}, ${admin_sub}.${domain}, ${sftp_sub}.${domain}."
+    log_success "Règles Zoraxy créées : ${proxy_sub}.${domain}, ${admin_sub}.${domain}, ${pgadmin_sub}.${domain}."
 }
 
 main "$@"

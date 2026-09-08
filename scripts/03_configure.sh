@@ -62,14 +62,14 @@ configure_cockpit_user() {
 }
 
 configure_firewall() {
-    local sftp_p="${SFTPGO_SFTP_PORT:-2022}"
+    
     local zoraxy_p="${ZORAXY_ADMIN_PORT:-8000}"
 
     if command -v firewall-cmd >/dev/null 2>&1; then
         run_sudo systemctl start firewalld 2>/dev/null || true
         if run_sudo firewall-cmd --state >/dev/null 2>&1; then
             log_info "Configuration du pare-feu Firewalld (Fedora / RHEL)..."
-            for p in cockpit 80/tcp 443/tcp "${sftp_p}/tcp" "${zoraxy_p}/tcp"; do
+            for p in cockpit 80/tcp 443/tcp "${zoraxy_p}/tcp"; do
                 run_sudo firewall-cmd --permanent --add-port="$p" 2>/dev/null || \
                 run_sudo firewall-cmd --permanent --add-service="$p" 2>/dev/null || true
             done
@@ -78,7 +78,7 @@ configure_firewall() {
         fi
     elif command -v ufw >/dev/null 2>&1 && run_sudo ufw status | grep -qw "active"; then
         log_info "Configuration du pare-feu UFW..."
-        for p in 80/tcp 443/tcp "${sftp_p}/tcp" "${zoraxy_p}/tcp" "${COCKPIT_PORT:-9090}/tcp"; do
+        for p in 80/tcp 443/tcp "${zoraxy_p}/tcp" "${COCKPIT_PORT:-9090}/tcp"; do
             run_sudo ufw allow "$p" || true
         done
         log_success "Règles UFW appliquées."
