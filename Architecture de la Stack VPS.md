@@ -1,6 +1,6 @@
-# **Stack d'Administration VPS : Zoraxy + Cockpit + pgAdmin**
+# **Stack d'Administration VPS : Zoraxy + Cockpit + pgAdmin + WireGuard**
 
-Cette stack hybride (mixant installation native et conteneurs Podman rootless en mode réseau hôte `--network host`) offre un équilibre parfait entre **sécurité**, **facilité d'utilisation** (interfaces web automatisées) et **puissance d'administration**.
+Cette stack hybride (services natifs, conteneurs Podman rootless et une exception rootful dédiée au VPN) offre un équilibre entre **sécurité**, **facilité d'administration** et **accès distant chiffré**. Zoraxy et pgAdmin restent rootless ; wg-easy est rootful car il doit créer `wg0` dans le namespace réseau de l'hôte.
 
 ---
 
@@ -9,105 +9,130 @@ Cette stack hybride (mixant installation native et conteneurs Podman rootless en
 ```text
                                  ┌───────────────────────────────────────────────────────────┐
                                  │                    INTERNET                               │
-                                 └─────────────────────┬─────────────────────────────────────┘
-                                                       │
-                                  Ports 80 / 443 (TCP) │
-                                                       ▼
-                                 ┌───────────────────────────────────────────────────────────┐
-                                 │                    ZORAXY (Reverse Proxy & WAF)           │
-                                 │         Conteneur Podman Rootless (--network host)        │
-                                 │        Ports d'écoute hôte : 80, 443, Admin : 8000        │
-                                 └──────────────┬──────────────────┬──────────────────┬──────┘
-                                                │                  │                  │
-               https://admin.votre-domaine.com  │                  │                  │ https://db.votre-domaine.com
-                                                ▼                  │                  ▼
-                                 ┌─────────────────────┐           │           ┌─────────────────────┐
-                                 │  Cockpit Console OS │           │           │     pgAdmin 4       │
-                                 │   (Service Natif)   │           │           │  (--network host)   │
-                                 │     (Port 9090)     │           │           │     (Port 5050)     │
-                                 └─────────────────────┘           │           └─────────────────────┘
-                                                                   ▼
-                                                        https://proxy.votre-domaine.com
-                                                        ┌─────────────────────┐
-                                                        │  Zoraxy Web Admin   │
-                                                        │     (Port 8000)     │
-                                                        └─────────────────────┘
+                                 └───────────┬───────────────────────────────┬───────────────┘
+                                             │                               │
+                              TCP 80 / 443   │                               │   UDP 51820
+                                             ▼                               ▼
+                        ┌───────────────────────────────────┐   ┌──────────────────────────────┐
+                        │       ZORAXY (Reverse Proxy)      │   │   wg-easy (Podman ROOTFUL)   │
+                        │  Podman rootless --network host   │   │   --network host, Quadlet    │
+                        │  Ports : 80, 443, admin 8000      │   │   wg0 : 10.8.0.0/24          │
+                        └───┬───────────┬───────────┬───────┘   └──────────────┬───────────────┘
+                            │           │           │                          │
+      https://admin.*       │           │           │ https://vpn.*           │
+                            ▼           │           ▼                          ▼
+                 ┌─────────────────┐    │    ┌─────────────┐        ┌─────────────────────┐
+                 │ Cockpit (natif) │    │    │ wg-easy UI  │        │ Clients du tunnel   │
+                 │ Port 9090       │    │    │ 127.0.0.1   │        │ 10.8.0.2, 10.8.0.3… │
+                 └─────────────────┘    │    │  :9999      │        └─────────────────────┘
+                                        ▼    └─────────────┘
+                              https://proxy.*  ┌─────────────┐
+                                               │ Zoraxy Admin│
+                                               │ Port 8000   │
+                                               └─────────────┘
+                              https://db.*     ┌─────────────┐
+                                               │  pgAdmin 4  │
+                                               │ Port 5050   │
+                                               └─────────────┘
 ```
 
 ### Flux d'Exécution
-1. **Point d'entrée unique** : Internet contacte votre serveur exclusivement sur les ports **80** (HTTP) et **443** (HTTPS).
-2. **Filtrage et Chiffrement** : **Zoraxy** intercepte toutes les requêtes, gère le chiffrement SSL/TLS (Let's Encrypt automatique) et bloque les attaques via son WAF intégré.
-3. **Routage Automatique par Sous-Domaine (Zero-Conf)** : Zoraxy dispatche instantanément vers le service approprié grâce aux règles générées dès l'installation (communication directe sur l'interface loopback hôte) :
-   * `admin.votre-domaine.com` ➔ **Cockpit** (`http://127.0.0.1:9090` avec support WebSockets).
-   * `proxy.votre-domaine.com` ➔ **Zoraxy Web Admin** (`http://127.0.0.1:8000`).
-   * `db.votre-domaine.com` ➔ **pgAdmin 4** (`http://127.0.0.1:5050`).
-   * `*.votre-domaine.com` ➔ N'importe quelle future application conteneurisée.
-4. **Authentification Unifiée dès la Première Connexion** :
-   * Aucun portail public non filtré sur le domaine racine.
-   * L'accès à chaque interface sollicite immédiatement les identifiants centraux définis dans le `.env` (`ADMIN_USER` / `ADMIN_PASSWORD`).
+
+1. **Point d'entrée unique web** : Internet contacte les ports **80/443**. Zoraxy termine le TLS, applique son WAF et route par sous-domaine.
+2. **Routage Zero-Conf** (communication loopback hôte) :
+   * `admin.domaine.com` ➔ **Cockpit** (`http://127.0.0.1:9090`, WebSockets activés).
+   * `proxy.domaine.com` ➔ **Zoraxy Web Admin** (`http://127.0.0.1:8000`).
+   * `db.domaine.com` ➔ **pgAdmin 4** (`http://127.0.0.1:5050`).
+   * `vpn.domaine.com` ➔ **wg-easy UI** (`http://127.0.0.1:9999`).
+3. **Point d'entrée VPN** : les clients WireGuard joignent **UDP 51820**. wg-easy crée `wg0` et le sous-réseau `10.8.0.0/24` **directement sur l'hôte**.
+4. **Accès aux machines du tunnel** : puisque `wg0` est visible sur l'hôte, Zoraxy peut proxyfier un service interne, par exemple `okay.domaine.com` ➔ `10.8.0.2:8096`.
+5. **Authentification** : aucun portail public sur le domaine racine. Chaque interface demande les identifiants définis dans `.env` (le VPN conserve toutefois les identifiants de sa base lors d'une migration).
 
 ---
 
 ## **2. Cockpit : La Tour de Contrôle (Installation Native)**
 
-Contrairement aux applications conteneurisées, Cockpit s'installe **directement sur le système d'exploitation** de votre VPS (Fedora, RHEL, Debian, Ubuntu).
-
-### Points forts techniques
-* **Consommation Zéro au repos** : Activé à la demande par socket Systemd (`cockpit.socket`), il ne consomme aucune ressource CPU/RAM en veille.
-* **Synchronisation avec Utilisateur Hôte** : Le script détecte et synchronise l'utilisateur spécifié dans `ADMIN_USER` (utilisateur natif existant du VPS ou nouveau compte), lui accorde les privilèges d'administration (`wheel`/`sudo`) et synchronise le mot de passe maître.
-* **cockpit-podman** : Gestion visuelle complète des conteneurs, images, réseaux et volumes Podman rootless.
+* **Consommation nulle au repos** : activé à la demande par `cockpit.socket`.
+* **Synchronisation avec l'utilisateur hôte** : `ADMIN_USER` est rattaché à `wheel`/`sudo` et son mot de passe est aligné sur `ADMIN_PASSWORD`.
+* **cockpit-podman** : gestion visuelle des conteneurs, images, réseaux et volumes Podman.
 
 ---
 
-## **3. Zoraxy : Le Routeur, Vigile & WAF (Conteneur Podman Rootless - Mode Host)**
+## **3. Zoraxy : Routeur, Vigile & WAF (Podman Rootless, Mode Host)**
 
-Zoraxy est votre **Reverse Proxy & WAF**. C'est le bouclier réseau de votre infrastructure. Exécuté avec `--network host`, il communique sans latence ni surcharge de translation d'adresse (NAT) avec les services locaux.
-
-### Fonctionnalités Clés & Gestion de l'Authentification
-* **Routage Zero-Conf** : Le script `scripts/03_zoraxy_rules.sh` écrit directement les fichiers de règles au format JSON dans `conf/proxy/`. L'accès est fonctionnel dès la première minute.
-* **Séparation Stockage (`conf/` vs `sys.db`)** :
-  - `conf/` : Héberge la configuration réseau, les certificats SSL et les règles de proxy sous forme de fichiers JSON persistants.
-  - `sys.db` : Base embarquée BoltDB contenant les sessions d'administration et les métriques de trafic.
-* **Auto-Guérison et Synchronisation Continue** :
-  - Lors de chaque exécution de `./install.sh`, le script teste activement l'authentification avec les identifiants déclarés dans `.env`.
-* **Gestionnaire ACME / SSL** : Certificats Let's Encrypt générés et renouvelés automatiquement avec redirection HTTPS forcée.
+* **Routage Zero-Conf** : `scripts/03_zoraxy_rules.sh` écrit les règles JSON dans `conf/proxy/`.
+* **Séparation stockage** : `conf/` contient les règles et certificats ; `sys.db` contient les sessions et métriques.
+* **Auto-guérison** : `scripts/05_init_auth.sh` teste les identifiants et réinitialise `sys.db` en cas de divergence, sans toucher aux règles de proxy.
+* **ACME / SSL** : certificats Let's Encrypt générés et renouvelés automatiquement, redirection HTTPS forcée.
 
 ---
 
-## **4. pgAdmin : L'Administration PostgreSQL Web (Conteneur Podman Rootless - Mode Host)**
+## **4. pgAdmin : Administration PostgreSQL (Podman Rootless, Mode Host)**
 
-pgAdmin 4 permet d'administrer graphiquement vos bases de données PostgreSQL via une interface web, branché directement sur la pile réseau de l'hôte (`--network host`).
-
-### Gestion avancée des permissions sous Podman Rootless
-* **Le défi des subUIDs** : Dans un conteneur rootless, pgAdmin s'exécute avec son propre UID interne non privilégié (`UID 5050:GID 5050`), qui correspond sur l'hôte à un sous-identifiant dédié.
-* **La solution de la Stack** : Utilisation conjointe du flag de volume `:Z,U` et de `podman unshare chown -R 5050:5050 data/pgadmin` pour garantir des droits d'écriture sans restriction au volume pgAdmin.
-* **Synchronisation des Comptes** : Le script configure `PGADMIN_DEFAULT_EMAIL` et `PGADMIN_DEFAULT_PASSWORD` depuis les variables `.env`.
+* **SubUIDs** : l'UID interne `5050:5050` est mappé via `podman unshare chown` et le volume `:Z,U`.
+* **Identifiants** : `PGADMIN_DEFAULT_EMAIL` et `PGADMIN_DEFAULT_PASSWORD` dérivent de `ADMIN_USER` / `ADMIN_PASSWORD`.
+* **Accès** : `https://db.domaine.com` ou `127.0.0.1:5050`.
 
 ---
 
-## **5. Tableau Récapitulatif de la Stack**
+## **5. WireGuard / wg-easy : VPN et Accès aux Réseaux Distants (Podman ROOTFUL)**
 
-| Service | Mode d'installation | Rôle | URL d'accès | Port direct hôte | Identifiant maître |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Zoraxy** | Conteneur Podman rootless (`--network host`) | Reverse Proxy & WAF | `https://proxy.votre-domaine.com` | `8000` | `<ADMIN_USER>` / `<MDP_ENV>` |
-| **Cockpit** | Natif OS (systemd socket) | Administration Système | `https://admin.votre-domaine.com` | `9090` | `<ADMIN_USER>` / `<MDP_ENV>` |
-| **pgAdmin 4** | Conteneur Podman rootless (`--network host`) | UI de base de données | `https://db.votre-domaine.com` | `5050` | `<ADMIN_USER>@<DOMAIN>` / `<MDP_ENV>` |
+### Pourquoi rootful ?
+
+WireGuard doit créer l'interface `wg0`, modifier les routes et le NAT de l'hôte. Un conteneur rootless ne dispose pas de `CAP_NET_ADMIN` dans le namespace réseau initial ; `wg0` resterait invisible pour Zoraxy. **Seul wg-easy est rootful**, via une unité Quadlet système (`ivps-wireguard.service`). Zoraxy et pgAdmin restent rootless.
+
+### Fonctionnement
+
+* **Données** : `data/wireguard/` (clés serveur, base SQLite, clients), monté sur `/etc/wireguard`.
+* **Réseau** : `Network=host`, `wg0` et `10.8.0.0/24` visibles par l'hôte.
+* **UI** : écoute par défaut sur `127.0.0.1:9999`, exposée uniquement par Zoraxy (`https://vpn.domaine.com`).
+* **NAT sortant** : `scripts/05_init_wireguard.sh` détecte l'interface de la route par défaut et corrige la colonne `device` de wg-easy (`ens3`, `eth0`, …). Les clients ont ainsi accès à Internet.
+* **Sysctls** : `ip_forward`, `src_valid_mark` et forwarding IPv6 sont appliqués à l'hôte par `/etc/sysctl.d/99-ivps-wireguard.conf` (impossible avec `--sysctl` en mode host).
+* **Migration** : à la première installation, les données de `reversevpn/` sont importées automatiquement.
+
+### Exposer un service du tunnel via Zoraxy
+
+| Champ Zoraxy | Valeur |
+|---|---|
+| Type | HTTP |
+| Root domain | `okay.domaine.com` |
+| Upstream | `10.8.0.2:8096` |
+
+Zoraxy termine le TLS et relaie vers la machine du tunnel.
 
 ---
 
-## **6. Scénario d'Utilisation Réel**
+## **6. Tableau Récapitulatif de la Stack**
+
+| Service | Mode d'installation | Rôle | URL d'accès | Port direct hôte |
+| :--- | :--- | :--- | :--- | :--- |
+| **Zoraxy** | Podman rootless (`--network host`) | Reverse Proxy & WAF | `https://proxy.domaine.com` | `8000` |
+| **Cockpit** | Natif OS (systemd socket) | Administration Système | `https://admin.domaine.com` | `9090` |
+| **pgAdmin 4** | Podman rootless (`--network host`) | UI PostgreSQL | `https://db.domaine.com` | `5050` |
+| **wg-easy** | Podman **rootful** Quadlet (`--network host`) | VPN WireGuard & UI | `https://vpn.domaine.com` | `127.0.0.1:9999` |
+| **WireGuard** | Interface hôte `wg0` | Tunnel clients | *Non applicable* | `UDP 51820` |
+
+---
+
+## **7. Scénario d'Utilisation Réel**
 
 ```bash
-# 1. Se connecter à la console Cockpit pour inspecter les métriques
-# Rendez-vous sur : https://admin.votre-domaine.com
+# 1. Inspecter les métriques système
+#    https://admin.domaine.com
 
-# 2. Gérer vos bases de données PostgreSQL
-# Rendez-vous sur : https://db.votre-domaine.com
+# 2. Gérer PostgreSQL
+#    https://db.domaine.com
 
-# 3. Gérer les certificats SSL Let's Encrypt et le WAF
-# Rendez-vous sur : https://proxy.votre-domaine.com
+# 3. Gérer certificats, WAF et routage
+#    https://proxy.domaine.com
 
-# 4. Mettre à jour les identifiants ou reconfigurer
+# 4. Créer un client VPN et télécharger sa configuration
+#    https://vpn.domaine.com
+
+# 5. Exposer un service du tunnel (ex. Jellyfin sur 10.8.0.2:8096)
+#    Zoraxy ➔ Proxy ➔ okay.domaine.com ➔ 10.8.0.2:8096
+
+# 6. Reconfigurer
 nano .env
 ./install.sh
 ```

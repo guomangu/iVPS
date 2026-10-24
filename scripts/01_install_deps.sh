@@ -9,7 +9,7 @@ source "${SCRIPT_DIR}/common.sh"
 
 install_dnf_deps() {
     log_info "Installation des paquets sur Fedora / RHEL via DNF..."
-    local core_pkgs=(podman podman-compose cockpit cockpit-podman cockpit-storaged curl iproute openssl firewalld)
+    local core_pkgs=(podman podman-compose cockpit cockpit-podman cockpit-storaged curl iproute openssl firewalld python3)
     local opt_pkgs=(cockpit-packagekit pcp-zeroconf)
 
     if ! run_sudo dnf install -y --skip-unavailable "${core_pkgs[@]}" "${opt_pkgs[@]}"; then
@@ -24,7 +24,7 @@ install_dnf_deps() {
 install_apt_deps() {
     log_info "Mise à jour et installation des paquets APT (Debian/Ubuntu)..."
     run_sudo apt-get update -y
-    local pkgs=(podman podman-compose cockpit cockpit-podman cockpit-storaged curl iproute2 openssl)
+    local pkgs=(podman podman-compose cockpit cockpit-podman cockpit-storaged curl iproute2 openssl python3)
     for opt in cockpit-pcp cockpit-packagekit; do
         if apt-cache show "$opt" >/dev/null 2>&1; then pkgs+=("$opt"); fi
     done
@@ -33,11 +33,11 @@ install_apt_deps() {
 
 install_pacman_deps() {
     log_info "Installation des paquets Pacman (Arch Linux)..."
-    run_sudo pacman -Sy --noconfirm podman podman-compose cockpit cockpit-podman curl iproute2 openssl
+    run_sudo pacman -Sy --noconfirm podman podman-compose cockpit cockpit-podman curl iproute2 openssl python3
 }
 
 are_core_deps_installed() {
-    for cmd in podman curl ss openssl cockpit-bridge; do
+    for cmd in podman curl ss openssl cockpit-bridge python3; do
         command -v "$cmd" >/dev/null 2>&1 || return 1
     done
     return 0
@@ -58,7 +58,7 @@ main() {
         esac
     fi
 
-    for cmd in podman cockpit-bridge curl ss openssl; do
+    for cmd in podman cockpit-bridge curl ss openssl python3; do
         if command -v "$cmd" >/dev/null 2>&1; then
             log_success "Outil vérifié : $cmd"
         else

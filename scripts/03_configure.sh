@@ -61,35 +61,11 @@ configure_cockpit_user() {
     log_success "Utilisateur système '$admin_user' synchronisé pour Cockpit."
 }
 
-configure_firewall() {
-    
-    local zoraxy_p="${ZORAXY_ADMIN_PORT:-8000}"
-
-    if command -v firewall-cmd >/dev/null 2>&1; then
-        run_sudo systemctl start firewalld 2>/dev/null || true
-        if run_sudo firewall-cmd --state >/dev/null 2>&1; then
-            log_info "Configuration du pare-feu Firewalld (Fedora / RHEL)..."
-            for p in cockpit 80/tcp 443/tcp "${zoraxy_p}/tcp"; do
-                run_sudo firewall-cmd --permanent --add-port="$p" 2>/dev/null || \
-                run_sudo firewall-cmd --permanent --add-service="$p" 2>/dev/null || true
-            done
-            run_sudo firewall-cmd --reload || true
-            log_success "Règles Firewalld appliquées."
-        fi
-    elif command -v ufw >/dev/null 2>&1 && run_sudo ufw status | grep -qw "active"; then
-        log_info "Configuration du pare-feu UFW..."
-        for p in 80/tcp 443/tcp "${zoraxy_p}/tcp" "${COCKPIT_PORT:-9090}/tcp"; do
-            run_sudo ufw allow "$p" || true
-        done
-        log_success "Règles UFW appliquées."
-    fi
-}
-
 main() {
     log_info "=== Étape 3 : Configuration système, Cockpit, Pare-feu et Zoraxy ==="
     configure_cockpit
     configure_cockpit_user
-    configure_firewall
+    bash "${SCRIPT_DIR}/03_firewall.sh"
     bash "${SCRIPT_DIR}/03_zoraxy_rules.sh"
     log_success "Étape 3 terminée avec succès."
 }

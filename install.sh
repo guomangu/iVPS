@@ -34,12 +34,19 @@ print_summary() {
     echo -e "  - Utilisateur pgAdmin   : ${C_YELLOW}${user}@${domain}${C_RESET}"
     echo -e "  - Mot de passe maître   : ${C_YELLOW}${ADMIN_PASSWORD}${C_RESET}"
     echo -e "    ${C_RESET}(Personnalisable dans .env, rejouez ./install.sh pour l'appliquer)"
+    if [[ "${WG_ENABLED:-true}" == "true" ]]; then
+        echo -e "  - WireGuard wg-easy    : identifiants définis dans son UI (INIT_* au 1er démarrage)"
+    fi
     echo -e "\n${C_CYAN}Points d'accès aux services :${C_RESET}"
     echo -e "  - Zoraxy Web Admin    : ${C_YELLOW}https://${ZORAXY_SUBDOMAIN:-proxy}.${domain}${C_RESET} (Direct : port ${ZORAXY_ADMIN_PORT:-8000})"
     echo -e "  - Cockpit Console OS  : ${C_YELLOW}https://${COCKPIT_SUBDOMAIN:-admin}.${domain}${C_RESET} (Direct : port ${COCKPIT_PORT:-9090})"
     echo -e "  - pgAdmin Web Client   : ${C_YELLOW}https://${PGADMIN_SUBDOMAIN:-db}.${domain}${C_RESET} (Direct : port ${PGADMIN_PORT:-5050})"
+    if [[ "${WG_ENABLED:-true}" == "true" ]]; then
+        echo -e "  - WireGuard wg-easy   : ${C_YELLOW}https://${WG_SUBDOMAIN:-vpn}.${domain}${C_RESET} (UDP ${WG_LISTEN_PORT:-51820})"
+    fi
     echo -e "\n${C_CYAN}Commandes d'exploitation :${C_RESET}"
     echo -e "  - Statut de la stack   : ${C_YELLOW}systemctl --user status ivps-stack.service${C_RESET}"
+    echo -e "  - Statut WireGuard     : ${C_YELLOW}systemctl status ivps-wireguard.service${C_RESET}"
     echo -e "  - Journaux en direct   : ${C_YELLOW}journalctl --user -u ivps-stack.service -f${C_RESET}"
     echo -e "  - Réappliquer les modifs: ${C_YELLOW}./install.sh${C_RESET}"
     echo -e "  - Désinstaller         : ${C_YELLOW}./uninstall.sh${C_RESET}"
@@ -52,9 +59,11 @@ main() {
     stop_active_stack
     bash "${PROJECT_DIR}/scripts/01_install_deps.sh"
     bash "${PROJECT_DIR}/scripts/02_install_components.sh"
+    bash "${PROJECT_DIR}/scripts/02_install_wireguard.sh"
     bash "${PROJECT_DIR}/scripts/03_configure.sh"
     bash "${PROJECT_DIR}/scripts/04_systemd_linger.sh"
     bash "${PROJECT_DIR}/scripts/05_init_auth.sh"
+    bash "${PROJECT_DIR}/scripts/05_init_wireguard.sh"
     print_summary
 }
 

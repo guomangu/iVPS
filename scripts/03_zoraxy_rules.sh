@@ -37,6 +37,7 @@ main() {
     local admin_sub="${COCKPIT_SUBDOMAIN:-admin}"
     local proxy_sub="${ZORAXY_SUBDOMAIN:-proxy}"
     local pgadmin_sub="${PGADMIN_SUBDOMAIN:-db}"
+    local wg_sub="${WG_SUBDOMAIN:-vpn}"
     local base="${DATA_DIR:-${ROOT_DIR}/data}"
     local conf_dir="${base}/zoraxy/config/conf"
     local proxy_dir="${conf_dir}/proxy"
@@ -54,8 +55,14 @@ main() {
     create_zoraxy_rule "${proxy_sub}.${domain}" "127.0.0.1:${ZORAXY_ADMIN_PORT:-8000}" false "" "$proxy_dir"
     create_zoraxy_rule "${admin_sub}.${domain}" "127.0.0.1:${COCKPIT_PORT:-9090}" true "" "$proxy_dir"
     create_zoraxy_rule "${pgadmin_sub}.${domain}" "127.0.0.1:${PGADMIN_PORT:-5050}" false "" "$proxy_dir"
+    if [[ "${WG_ENABLED:-true}" == "true" ]]; then
+        create_zoraxy_rule "${wg_sub}.${domain}" "127.0.0.1:${WG_UI_PORT:-9999}" false "" "$proxy_dir"
+    fi
 
     log_success "Règles Zoraxy créées : ${proxy_sub}.${domain}, ${admin_sub}.${domain}, ${pgadmin_sub}.${domain}."
+    if [[ "${WG_ENABLED:-true}" == "true" ]]; then
+        log_success "Règle Zoraxy WireGuard créée : ${wg_sub}.${domain}."
+    fi
 }
 
 main "$@"

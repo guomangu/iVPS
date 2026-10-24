@@ -44,6 +44,20 @@ teardown_containers() {
     fi
 }
 
+remove_wireguard() {
+    local unit="/etc/containers/systemd/ivps-wireguard.container"
+    if [[ -e "$unit" ]]; then
+        log_info "Arrêt et suppression du service WireGuard rootful..."
+        run_sudo systemctl stop ivps-wireguard.service 2>/dev/null || true
+        run_sudo rm -f "$unit"
+        run_sudo systemctl daemon-reload 2>/dev/null || true
+    fi
+    run_sudo podman rm -f ivps-wireguard 2>/dev/null || true
+    run_sudo rm -f /etc/sysctl.d/99-ivps-wireguard.conf \
+        /etc/modules-load.d/ivps-wireguard.conf 2>/dev/null || true
+    run_sudo sysctl --system >/dev/null 2>&1 || true
+}
+
 clean_configs() {
     local sysctl_conf="/etc/sysctl.d/99-ivps-ports.conf"
     if [[ -f "$sysctl_conf" ]]; then
@@ -52,10 +66,11 @@ clean_configs() {
         run_sudo sysctl --system >/dev/null 2>&1 || true
     fi
 
-    local base="${DATA_DIR:-${ROOT_DIR}/data}"
+    local base="${DATA_DIR:-./data}"
+    [[ "$base" = /* ]] || base="${ROOT_DIR}/${base#./}"
     if [[ "$PURGE_DATA" == "true" ]]; then
         log_warn "Suppression définitive des données persistantes ($base)..."
-        rm -rf "$base"
+        run_sudo rm -rf "$base"
         log_success "Dossier de données supprimé."
     else
         log_info "Données conservées dans $base. Utilisez '--purge' pour les supprimer."
@@ -66,6 +81,7 @@ main() {
     log_warn "=== Désinstallation de la Stack IVPS ==="
     stop_user_service
     teardown_containers
+    remove_wireguard
     clean_configs
     log_success "Désinstallation terminée avec succès."
 }

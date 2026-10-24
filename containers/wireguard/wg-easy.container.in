@@ -1,0 +1,43 @@
+# ==============================================================================
+# iVPS - WireGuard (wg-easy), unité Quadlet ROOTFUL
+# ==============================================================================
+# Ce modèle est rendu par scripts/02_install_wireguard.sh vers :
+#   /etc/containers/systemd/ivps-wireguard.container
+# systemd génère alors ivps-wireguard.service.
+#
+# Pourquoi rootful ? WireGuard doit créer wg0 dans le namespace réseau de
+# l'hôte pour que le tunnel 10.8.0.0/24 soit joignable par Zoraxy (lui aussi
+# en --network host). Un conteneur rootless ne peut pas créer wg0 sur l'hôte.
+#
+# Zoraxy et pgAdmin restent, eux, en Podman rootless.
+
+[Unit]
+Description=iVPS WireGuard (wg-easy) - Podman rootful, host network
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=ivps-wireguard
+Image=@WG_IMAGE@
+AutoUpdate=registry
+
+# Variables wg-easy générées depuis le .env d'iVPS (droits 600)
+EnvironmentFile=@WG_ENV_FILE@
+
+# Persistance de /etc/wireguard : clés serveur, base SQLite, clients
+Volume=@WG_DATA_DIR@:/etc/wireguard:Z
+
+# Réseau de l'hôte : wg0 et 10.8.0.0/24 sont visibles sur l'hôte
+Network=host
+
+# Capacités nécessaires à la création de l'interface et du NAT
+AddCapability=NET_ADMIN
+AddCapability=SYS_MODULE
+AddCapability=NET_RAW
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
